@@ -406,6 +406,8 @@ export default function Products() {
   );
 }
 
+const unitOptions2: UnitOfMeasure[] = ['pcs', 'kg', 'g', 'l', 'ml', 'm', 'cm', 'mm', 'box', 'pack'];
+
 function ProductDialog({
   isOpen,
   onOpenChange,
@@ -425,15 +427,168 @@ function ProductDialog({
 }) {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Product
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-w-2xl">
         <form onSubmit={onSubmit}>
-          {/* Form content same as above */}
+          <DialogHeader>
+            <DialogTitle>Add New Product</DialogTitle>
+            <DialogDescription>
+              Create a new product for your catalog.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="dialog-sku">SKU *</Label>
+                <Input
+                  id="dialog-sku"
+                  value={formData.sku}
+                  onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                  placeholder="PROD-001"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dialog-name">Product Name *</Label>
+                <Input
+                  id="dialog-name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="Widget Pro"
+                  required
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dialog-description">Description</Label>
+              <Textarea
+                id="dialog-description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Product description..."
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="dialog-category">Category</Label>
+                <Select
+                  value={formData.category_id}
+                  onValueChange={(value) => setFormData({ ...formData, category_id: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dialog-type">Product Type *</Label>
+                <Select
+                  value={formData.product_type}
+                  onValueChange={(value: ProductType) =>
+                    setFormData({ ...formData, product_type: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="in_house">In-House</SelectItem>
+                    <SelectItem value="outsourced">Outsourced</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="dialog-unit">Unit</Label>
+                <Select
+                  value={formData.unit}
+                  onValueChange={(value: UnitOfMeasure) =>
+                    setFormData({ ...formData, unit: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {unitOptions2.map((unit) => (
+                      <SelectItem key={unit} value={unit}>
+                        {unit}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dialog-price">Selling Price ($)</Label>
+                <Input
+                  id="dialog-price"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.selling_price}
+                  onChange={(e) =>
+                    setFormData({ ...formData, selling_price: parseFloat(e.target.value) || 0 })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dialog-time">Mfg. Time (min)</Label>
+                <Input
+                  id="dialog-time"
+                  type="number"
+                  min="0"
+                  value={formData.manufacturing_time_minutes}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      manufacturing_time_minutes: parseInt(e.target.value) || 0,
+                    })
+                  }
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="dialog-minStock">Minimum Stock</Label>
+                <Input
+                  id="dialog-minStock"
+                  type="number"
+                  min="0"
+                  value={formData.minimum_stock}
+                  onChange={(e) =>
+                    setFormData({ ...formData, minimum_stock: parseFloat(e.target.value) || 0 })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dialog-currentStock">Current Stock</Label>
+                <Input
+                  id="dialog-currentStock"
+                  type="number"
+                  min="0"
+                  value={formData.current_stock}
+                  onChange={(e) =>
+                    setFormData({ ...formData, current_stock: parseFloat(e.target.value) || 0 })
+                  }
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Creating...' : 'Create Product'}
+            </Button>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
