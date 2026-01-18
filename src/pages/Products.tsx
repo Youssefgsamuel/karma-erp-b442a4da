@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useProducts, useCreateProduct, useDeleteProduct } from '@/hooks/useProducts';
+import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from '@/hooks/useProducts';
 import { useCategories, useCreateCategory } from '@/hooks/useCategories';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable, Column } from '@/components/ui/data-table';
@@ -31,32 +31,38 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Package, Plus, MoreHorizontal, Pencil, Trash2, Search } from 'lucide-react';
+import { Package, Plus, MoreHorizontal, Pencil, Trash2, Search, PlusCircle } from 'lucide-react';
 import type { Product, ProductType, UnitOfMeasure, Category } from '@/types/erp';
 
 const unitOptions: UnitOfMeasure[] = ['pcs', 'kg', 'g', 'l', 'ml', 'm', 'cm', 'mm', 'box', 'pack'];
+
+const initialFormData = {
+  sku: '',
+  name: '',
+  description: '',
+  category_id: '',
+  product_type: 'in_house' as ProductType,
+  unit: 'pcs' as UnitOfMeasure,
+  selling_price: 0,
+  manufacturing_time_minutes: 60,
+  minimum_stock: 0,
+  current_stock: 0,
+};
 
 export default function Products() {
   const { data: products = [], isLoading } = useProducts();
   const { data: categories = [] } = useCategories();
   const createProduct = useCreateProduct();
+  const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
   const createCategory = useCreateCategory();
 
   const [isOpen, setIsOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<(Product & { category: Category | null }) | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [formData, setFormData] = useState({
-    sku: '',
-    name: '',
-    description: '',
-    category_id: '',
-    product_type: 'in_house' as ProductType,
-    unit: 'pcs' as UnitOfMeasure,
-    selling_price: 0,
-    manufacturing_time_minutes: 60,
-    minimum_stock: 0,
-    current_stock: 0,
-  });
+  const [formData, setFormData] = useState(initialFormData);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
 
   const filteredProducts = products.filter(
     (p) =>
@@ -64,26 +70,68 @@ export default function Products() {
       p.sku.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const resetForm = () => {
+    setFormData(initialFormData);
+    setEditingProduct(null);
+    setNewCategoryName('');
+    setIsAddingCategory(false);
+  };
+
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
+    if (!open) {
+      resetForm();
+    }
+  };
+
+  const handleEdit = (product: Product & { category: Category | null }) => {
+    setEditingProduct(product);
+    setFormData({
+      sku: product.sku,
+      name: product.name,
+      description: product.description || '',
+      category_id: product.category_id || '',
+      product_type: product.product_type,
+      unit: product.unit,
+      selling_price: Number(product.selling_price),
+      manufacturing_time_minutes: product.manufacturing_time_minutes,
+      minimum_stock: Number(product.minimum_stock),
+      current_stock: Number(product.current_stock),
+    });
+    setIsOpen(true);
+  };
+
+  const handleAddCategory = async () => {
+    if (!newCategoryName.trim()) return;
+    const result = await createCategory.mutateAsync({ name: newCategoryName.trim() });
+    if (result?.id) {
+      setFormData({ ...formData, category_id: result.id });
+    }
+    setNewCategoryName('');
+    setIsAddingCategory(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createProduct.mutateAsync({
-      ...formData,
-      category_id: formData.category_id || undefined,
-    });
+    
+    if (editingProduct) {
+      await updateProduct.mutateAsync({
+        id: editingProduct.id,
+        ...formData,
+        category_id: formData.category_id || undefined,
+      });
+    } else {
+      await createProduct.mutateAsync({
+        ...formData,
+        category_id: formData.category_id || undefined,
+      });
+    }
+    
     setIsOpen(false);
-    setFormData({
-      sku: '',
-      name: '',
-      description: '',
-      category_id: '',
-      product_type: 'in_house',
-      unit: 'pcs',
-      selling_price: 0,
-      manufacturing_time_minutes: 60,
-      minimum_stock: 0,
-      current_stock: 0,
-    });
+    resetForm();
   };
+
+  const isSubmitting = createProduct.isPending || updateProduct.isPending;
 
   const columns: Column<Product & { category: Category | null }>[] = [
     {
@@ -157,7 +205,7 @@ export default function Products() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleEdit(item)}>
               <Pencil className="mr-2 h-4 w-4" />
               Edit
             </DropdownMenuItem>
@@ -190,12 +238,19 @@ export default function Products() {
         />
         <ProductDialog
           isOpen={isOpen}
-          onOpenChange={setIsOpen}
+          onOpenChange={handleOpenChange}
           formData={formData}
           setFormData={setFormData}
           categories={categories}
           onSubmit={handleSubmit}
-          isSubmitting={createProduct.isPending}
+          isSubmitting={isSubmitting}
+          isEditing={!!editingProduct}
+          newCategoryName={newCategoryName}
+          setNewCategoryName={setNewCategoryName}
+          isAddingCategory={isAddingCategory}
+          setIsAddingCategory={setIsAddingCategory}
+          onAddCategory={handleAddCategory}
+          isCreatingCategory={createCategory.isPending}
         />
       </div>
     );
@@ -207,178 +262,10 @@ export default function Products() {
         title="Products"
         description="Manage your product catalog and BOMs."
         actions={
-          <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Product
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <form onSubmit={handleSubmit}>
-                <DialogHeader>
-                  <DialogTitle>Add New Product</DialogTitle>
-                  <DialogDescription>
-                    Create a new product for your catalog.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="sku">SKU *</Label>
-                      <Input
-                        id="sku"
-                        value={formData.sku}
-                        onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                        placeholder="PROD-001"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Product Name *</Label>
-                      <Input
-                        id="name"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        placeholder="Widget Pro"
-                        required
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea
-                      id="description"
-                      value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      placeholder="Product description..."
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="category">Category</Label>
-                      <Select
-                        value={formData.category_id}
-                        onValueChange={(value) => setFormData({ ...formData, category_id: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categories.map((cat) => (
-                            <SelectItem key={cat.id} value={cat.id}>
-                              {cat.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="type">Product Type *</Label>
-                      <Select
-                        value={formData.product_type}
-                        onValueChange={(value: ProductType) =>
-                          setFormData({ ...formData, product_type: value })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="in_house">In-House</SelectItem>
-                          <SelectItem value="outsourced">Outsourced</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="unit">Unit</Label>
-                      <Select
-                        value={formData.unit}
-                        onValueChange={(value: UnitOfMeasure) =>
-                          setFormData({ ...formData, unit: value })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {unitOptions.map((unit) => (
-                            <SelectItem key={unit} value={unit}>
-                              {unit}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="price">Selling Price ($)</Label>
-                      <Input
-                        id="price"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={formData.selling_price}
-                        onChange={(e) =>
-                          setFormData({ ...formData, selling_price: parseFloat(e.target.value) || 0 })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="time">Mfg. Time (min)</Label>
-                      <Input
-                        id="time"
-                        type="number"
-                        min="0"
-                        value={formData.manufacturing_time_minutes}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            manufacturing_time_minutes: parseInt(e.target.value) || 0,
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="minStock">Minimum Stock</Label>
-                      <Input
-                        id="minStock"
-                        type="number"
-                        min="0"
-                        value={formData.minimum_stock}
-                        onChange={(e) =>
-                          setFormData({ ...formData, minimum_stock: parseFloat(e.target.value) || 0 })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="currentStock">Current Stock</Label>
-                      <Input
-                        id="currentStock"
-                        type="number"
-                        min="0"
-                        value={formData.current_stock}
-                        onChange={(e) =>
-                          setFormData({ ...formData, current_stock: parseFloat(e.target.value) || 0 })
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={createProduct.isPending}>
-                    {createProduct.isPending ? 'Creating...' : 'Create Product'}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <Button onClick={() => setIsOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Product
+          </Button>
         }
       />
 
@@ -402,11 +289,26 @@ export default function Products() {
         isLoading={isLoading}
         emptyMessage="No products found matching your search."
       />
+
+      <ProductDialog
+        isOpen={isOpen}
+        onOpenChange={handleOpenChange}
+        formData={formData}
+        setFormData={setFormData}
+        categories={categories}
+        onSubmit={handleSubmit}
+        isSubmitting={isSubmitting}
+        isEditing={!!editingProduct}
+        newCategoryName={newCategoryName}
+        setNewCategoryName={setNewCategoryName}
+        isAddingCategory={isAddingCategory}
+        setIsAddingCategory={setIsAddingCategory}
+        onAddCategory={handleAddCategory}
+        isCreatingCategory={createCategory.isPending}
+      />
     </div>
   );
 }
-
-const unitOptions2: UnitOfMeasure[] = ['pcs', 'kg', 'g', 'l', 'ml', 'm', 'cm', 'mm', 'box', 'pack'];
 
 function ProductDialog({
   isOpen,
@@ -416,23 +318,37 @@ function ProductDialog({
   categories,
   onSubmit,
   isSubmitting,
+  isEditing,
+  newCategoryName,
+  setNewCategoryName,
+  isAddingCategory,
+  setIsAddingCategory,
+  onAddCategory,
+  isCreatingCategory,
 }: {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  formData: any;
-  setFormData: (data: any) => void;
+  formData: typeof initialFormData;
+  setFormData: (data: typeof initialFormData) => void;
   categories: Category[];
   onSubmit: (e: React.FormEvent) => void;
   isSubmitting: boolean;
+  isEditing: boolean;
+  newCategoryName: string;
+  setNewCategoryName: (name: string) => void;
+  isAddingCategory: boolean;
+  setIsAddingCategory: (adding: boolean) => void;
+  onAddCategory: () => void;
+  isCreatingCategory: boolean;
 }) {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <form onSubmit={onSubmit}>
           <DialogHeader>
-            <DialogTitle>Add New Product</DialogTitle>
+            <DialogTitle>{isEditing ? 'Edit Product' : 'Add New Product'}</DialogTitle>
             <DialogDescription>
-              Create a new product for your catalog.
+              {isEditing ? 'Update product details.' : 'Create a new product for your catalog.'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -469,22 +385,63 @@ function ProductDialog({
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="dialog-category">Category</Label>
-                <Select
-                  value={formData.category_id}
-                  onValueChange={(value) => setFormData({ ...formData, category_id: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat.id} value={cat.id}>
-                        {cat.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Category</Label>
+                {isAddingCategory ? (
+                  <div className="flex gap-2">
+                    <Input
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="New category name"
+                      autoFocus
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={onAddCategory}
+                      disabled={isCreatingCategory || !newCategoryName.trim()}
+                    >
+                      {isCreatingCategory ? '...' : 'Add'}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setIsAddingCategory(false);
+                        setNewCategoryName('');
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Select
+                      value={formData.category_id}
+                      onValueChange={(value) => setFormData({ ...formData, category_id: value })}
+                    >
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((cat) => (
+                          <SelectItem key={cat.id} value={cat.id}>
+                            {cat.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      onClick={() => setIsAddingCategory(true)}
+                      title="Add new category"
+                    >
+                      <PlusCircle className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="dialog-type">Product Type *</Label>
@@ -517,7 +474,7 @@ function ProductDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {unitOptions2.map((unit) => (
+                    {unitOptions.map((unit) => (
                       <SelectItem key={unit} value={unit}>
                         {unit}
                       </SelectItem>
@@ -586,7 +543,7 @@ function ProductDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Creating...' : 'Create Product'}
+              {isSubmitting ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update Product' : 'Create Product')}
             </Button>
           </DialogFooter>
         </form>
