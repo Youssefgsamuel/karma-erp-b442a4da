@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Plus, MoreHorizontal, FileCheck, Trash2, Send, X, Check, ArrowRightLeft } from 'lucide-react';
+import { Plus, MoreHorizontal, FileCheck, Trash2, Send, X, Check, ArrowRightLeft, Mail, MessageCircle } from 'lucide-react';
 import { useQuotations, useCreateQuotation, useUpdateQuotationStatus, useDeleteQuotation, useConvertToSalesOrder, Quotation, CreateQuotationInput } from '@/hooks/useQuotations';
 import { useProducts } from '@/hooks/useProducts';
 import { format } from 'date-fns';
@@ -35,6 +35,7 @@ export default function Quotations() {
   const [formData, setFormData] = useState<CreateQuotationInput>({
     customer_name: '',
     customer_email: '',
+    customer_phone: '',
     valid_from: new Date().toISOString().split('T')[0],
     valid_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     discount_percent: 0,
@@ -90,6 +91,7 @@ export default function Quotations() {
     setFormData({
       customer_name: '',
       customer_email: '',
+      customer_phone: '',
       valid_from: new Date().toISOString().split('T')[0],
       valid_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       discount_percent: 0,
@@ -97,6 +99,26 @@ export default function Quotations() {
       notes: '',
       items: [{ description: '', quantity: 1, unit_price: 0 }],
     });
+  };
+
+  const generateQuotationMessage = (q: Quotation) => {
+    return `Quotation ${q.quotation_number}\n\nDear ${q.customer_name},\n\nPlease find your quotation details:\n\nTotal: $${Number(q.total).toFixed(2)}\nValid Until: ${new Date(q.valid_until).toLocaleDateString()}\n\nThank you for your business!`;
+  };
+
+  const handleSendWhatsApp = (q: Quotation) => {
+    if (!q.customer_phone) return;
+    const phone = q.customer_phone.replace(/\D/g, '');
+    const message = encodeURIComponent(generateQuotationMessage(q));
+    window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
+    updateStatus.mutate({ id: q.id, status: 'sent' });
+  };
+
+  const handleSendEmail = (q: Quotation) => {
+    if (!q.customer_email) return;
+    const subject = encodeURIComponent(`Quotation ${q.quotation_number}`);
+    const body = encodeURIComponent(generateQuotationMessage(q));
+    window.open(`mailto:${q.customer_email}?subject=${subject}&body=${body}`, '_blank');
+    updateStatus.mutate({ id: q.id, status: 'sent' });
   };
 
   const subtotal = formData.items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
@@ -119,9 +141,21 @@ export default function Quotations() {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           {q.status === 'draft' && (
-            <DropdownMenuItem onClick={() => updateStatus.mutate({ id: q.id, status: 'sent' })}>
-              <Send className="mr-2 h-4 w-4" /> Mark as Sent
-            </DropdownMenuItem>
+            <>
+              {q.customer_phone && (
+                <DropdownMenuItem onClick={() => handleSendWhatsApp(q)}>
+                  <MessageCircle className="mr-2 h-4 w-4" /> Send via WhatsApp
+                </DropdownMenuItem>
+              )}
+              {q.customer_email && (
+                <DropdownMenuItem onClick={() => handleSendEmail(q)}>
+                  <Mail className="mr-2 h-4 w-4" /> Send via Email
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: q.id, status: 'sent' })}>
+                <Send className="mr-2 h-4 w-4" /> Mark as Sent
+              </DropdownMenuItem>
+            </>
           )}
           {q.status === 'sent' && (
             <>
@@ -173,7 +207,7 @@ export default function Quotations() {
             <DialogDescription>Create a new quotation for a customer.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="customer_name">Customer Name *</Label>
                 <Input
@@ -190,6 +224,15 @@ export default function Quotations() {
                   type="email"
                   value={formData.customer_email}
                   onChange={(e) => setFormData(prev => ({ ...prev, customer_email: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="customer_phone">Customer Phone</Label>
+                <Input
+                  id="customer_phone"
+                  value={formData.customer_phone}
+                  onChange={(e) => setFormData(prev => ({ ...prev, customer_phone: e.target.value }))}
+                  placeholder="+1234567890"
                 />
               </div>
             </div>

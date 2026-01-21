@@ -272,6 +272,7 @@ export default function RawMaterials() {
           onSelectExisting={handleSelectExisting}
           isAddingNew={isAddingNew}
           setIsAddingNew={setIsAddingNew}
+          suppliers={suppliers}
         />
       </div>
     );
@@ -324,6 +325,7 @@ export default function RawMaterials() {
         onSelectExisting={handleSelectExisting}
         isAddingNew={isAddingNew}
         setIsAddingNew={setIsAddingNew}
+        suppliers={suppliers}
       />
     </div>
   );
@@ -342,6 +344,7 @@ function MaterialDialog({
   onSelectExisting,
   isAddingNew,
   setIsAddingNew,
+  suppliers,
 }: {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -355,6 +358,7 @@ function MaterialDialog({
   onSelectExisting: (id: string) => void;
   isAddingNew: boolean;
   setIsAddingNew: (adding: boolean) => void;
+  suppliers: { id: string; name: string }[];
 }) {
   const handleModeChange = (mode: 'new' | 'existing') => {
     setIsAddingNew(mode === 'new');
@@ -533,6 +537,28 @@ function MaterialDialog({
                       disabled={!isAddingNew && !!selectedExistingId}
                     />
                   </div>
+                </div>
+
+                {/* Supplier Selection */}
+                <div className="space-y-2">
+                  <Label htmlFor="supplier">Supplier *</Label>
+                  <Select
+                    value={formData.supplier_id}
+                    onValueChange={(value) => setFormData({ ...formData, supplier_id: value })}
+                    disabled={!isAddingNew && !!selectedExistingId}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a supplier" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {suppliers.map((supplier) => (
+                        <SelectItem key={supplier.id} value={supplier.id}>
+                          {supplier.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </>
             )}

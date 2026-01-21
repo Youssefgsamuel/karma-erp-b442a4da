@@ -8,6 +8,7 @@ export interface Quotation {
   customer_id: string | null;
   customer_name: string;
   customer_email: string | null;
+  customer_phone: string | null;
   status: 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired' | 'converted';
   valid_from: string;
   valid_until: string;
@@ -36,6 +37,7 @@ export interface QuotationItem {
 export interface CreateQuotationInput {
   customer_name: string;
   customer_email?: string;
+  customer_phone?: string;
   customer_id?: string;
   valid_from: string;
   valid_until: string;
@@ -130,6 +132,7 @@ export function useCreateQuotation() {
           quotation_number,
           customer_name: input.customer_name,
           customer_email: input.customer_email,
+          customer_phone: input.customer_phone,
           customer_id: input.customer_id,
           valid_from: input.valid_from,
           valid_until: input.valid_until,
