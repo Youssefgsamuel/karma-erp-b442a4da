@@ -247,6 +247,26 @@ export function useDeleteQuotation() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      // Check if quotation is linked to sales orders
+      const { data: salesOrders } = await supabase
+        .from('sales_orders')
+        .select('id, order_number')
+        .eq('quotation_id', id)
+        .limit(1);
+      
+      if (salesOrders && salesOrders.length > 0) {
+        throw new Error(`Cannot delete: This quotation has been converted to Sales Order ${salesOrders[0].order_number}. Delete the sales order first.`);
+      }
+
+      // Delete quotation items first
+      const { error: itemsError } = await supabase
+        .from('quotation_items')
+        .delete()
+        .eq('quotation_id', id);
+
+      if (itemsError) throw itemsError;
+
+      // Then delete the quotation
       const { error } = await supabase
         .from('quotations')
         .delete()
