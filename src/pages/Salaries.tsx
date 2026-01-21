@@ -84,14 +84,42 @@ export default function Salaries() {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
   const activeUsers = users.filter(u => u.is_active !== false);
 
-  const filteredSalaries = salaries.filter(
-    (s) =>
+  // Filter salaries by search query and selected categories
+  const filteredSalaries = salaries.filter((s) => {
+    const matchesSearch = 
       s.employee?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.employee_number.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+      (s as any).employee_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.employee_number.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesCategory = 
+      selectedCategories.length === 0 || 
+      (s.job_category_id && selectedCategories.includes(s.job_category_id));
+    
+    return matchesSearch && matchesCategory;
+  });
+
+  // Calculate total net pay for filtered salaries
+  const totalNetPay = filteredSalaries.reduce((sum, s) => sum + Number(s.net_pay || 0), 0);
+
+  const toggleCategory = (categoryId: string) => {
+    setSelectedCategories(prev => 
+      prev.includes(categoryId)
+        ? prev.filter(id => id !== categoryId)
+        : [...prev, categoryId]
+    );
+  };
+
+  const selectAllCategories = () => {
+    if (selectedCategories.length === jobCategories.length) {
+      setSelectedCategories([]);
+    } else {
+      setSelectedCategories(jobCategories.map(c => c.id));
+    }
+  };
 
   const resetForm = () => {
     setFormData(initialFormData);
@@ -303,17 +331,49 @@ export default function Salaries() {
         />
 
         <TabsContent value="salaries" className="mt-6">
-          {/* Search */}
-          <div className="mb-6 flex items-center gap-4">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search by employee name or number..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
+          {/* Filters and Total */}
+          <div className="mb-6 flex flex-col gap-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search by employee name or number..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              
+              {/* Total Net Pay */}
+              <div className="rounded-lg bg-primary/10 px-6 py-3">
+                <p className="text-sm text-muted-foreground">Total Net Pay (Filtered)</p>
+                <p className="text-2xl font-bold text-primary">${totalNetPay.toLocaleString()}</p>
+              </div>
             </div>
+
+            {/* Category Filters */}
+            {jobCategories.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-muted-foreground mr-2">Filter by Category:</span>
+                <Button
+                  variant={selectedCategories.length === 0 || selectedCategories.length === jobCategories.length ? "default" : "outline"}
+                  size="sm"
+                  onClick={selectAllCategories}
+                >
+                  {selectedCategories.length === jobCategories.length ? 'Clear All' : 'All Categories'}
+                </Button>
+                {jobCategories.map((category) => (
+                  <Button
+                    key={category.id}
+                    variant={selectedCategories.includes(category.id) ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => toggleCategory(category.id)}
+                  >
+                    {category.name}
+                  </Button>
+                ))}
+              </div>
+            )}
           </div>
 
           {!isLoading && salaries.length === 0 ? (

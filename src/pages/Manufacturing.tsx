@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -9,9 +9,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Plus, MoreHorizontal, Play, CheckCircle, XCircle, Trash2 } from 'lucide-react';
+import { Plus, MoreHorizontal, Play, CheckCircle, XCircle, Trash2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useManufacturingOrders, useCreateManufacturingOrder, useUpdateManufacturingOrder, useDeleteManufacturingOrder, ManufacturingOrder, CreateMOInput } from '@/hooks/useManufacturingOrders';
 import { useProducts } from '@/hooks/useProducts';
+import { useBomAvailability } from '@/hooks/useBomAvailability';
 import { format } from 'date-fns';
 
 const statusColors: Record<ManufacturingOrder['status'], string> = {
@@ -44,6 +45,12 @@ export default function Manufacturing() {
     planned_end: '',
     notes: '',
   });
+
+  // BOM availability check
+  const { data: bomAvailability, isLoading: isCheckingAvailability } = useBomAvailability(
+    formData.product_id,
+    formData.quantity
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -204,6 +211,46 @@ export default function Manufacturing() {
                 onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
               />
             </div>
+
+            {/* BOM Availability Check */}
+            {formData.product_id && bomAvailability && (
+              <div className={`rounded-lg p-4 ${bomAvailability.is_fully_available ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' : 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  {bomAvailability.is_fully_available ? (
+                    <>
+                      <CheckCircle2 className="h-5 w-5 text-green-600" />
+                      <span className="font-medium text-green-700 dark:text-green-400">Materials Available</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                      <span className="font-medium text-yellow-700 dark:text-yellow-400">
+                        {bomAvailability.has_bom ? 'Insufficient Materials' : 'No BOM Defined'}
+                      </span>
+                    </>
+                  )}
+                </div>
+                {bomAvailability.has_bom && bomAvailability.materials.length > 0 && (
+                  <div className="text-sm space-y-1">
+                    {bomAvailability.materials.map((m) => (
+                      <div key={m.raw_material_id} className="flex justify-between items-center">
+                        <span className={m.is_available ? 'text-muted-foreground' : 'text-yellow-700 dark:text-yellow-400'}>
+                          {m.raw_material_name}
+                        </span>
+                        <span className={m.is_available ? 'text-green-600' : 'text-red-600'}>
+                          {m.available_quantity} / {m.required_quantity} {m.is_available ? '✓' : `(need ${m.shortage} more)`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {!bomAvailability.has_bom && (
+                  <p className="text-sm text-muted-foreground">
+                    No Bill of Materials defined for this product. Add materials in the BOM page.
+                  </p>
+                )}
+              </div>
+            )}
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>

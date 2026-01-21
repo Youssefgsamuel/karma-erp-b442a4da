@@ -2,6 +2,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+// Helper to generate MO number
+async function generateMONumber() {
+  const { data } = await supabase
+    .from('manufacturing_orders')
+    .select('mo_number')
+    .order('created_at', { ascending: false })
+    .limit(1);
+  
+  const lastNum = data?.[0]?.mo_number;
+  const nextNum = lastNum ? parseInt(lastNum.replace('MO-', '')) + 1 : 1;
+  return `MO-${String(nextNum).padStart(5, '0')}`;
+}
 export interface Quotation {
   id: string;
   quotation_number: string;
@@ -178,7 +190,7 @@ export function useUpdateQuotationStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: Quotation['status'] }) => {
+    mutationFn: async ({ id, status, createMO = false }: { id: string; status: Quotation['status']; createMO?: boolean }) => {
       const { data, error } = await supabase
         .from('quotations')
         .update({ status })
@@ -187,11 +199,42 @@ export function useUpdateQuotationStatus() {
         .single();
 
       if (error) throw error;
+
+      // If status is accepted and createMO is true, create manufacturing orders for products
+      if (status === 'accepted' && createMO) {
+        const { data: quotationItems } = await supabase
+          .from('quotation_items')
+          .select('*, product:products(id, name)')
+          .eq('quotation_id', id);
+
+        if (quotationItems && quotationItems.length > 0) {
+          for (const item of quotationItems) {
+            if (item.product_id) {
+              const mo_number = await generateMONumber();
+              await supabase
+                .from('manufacturing_orders')
+                .insert({
+                  mo_number,
+                  product_id: item.product_id,
+                  quantity: item.quantity,
+                  priority: 'normal',
+                  notes: `Auto-created from quotation ${data.quotation_number}`,
+                });
+            }
+          }
+        }
+      }
+
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['quotations'] });
-      toast.success('Quotation status updated');
+      if (variables.status === 'accepted' && variables.createMO) {
+        queryClient.invalidateQueries({ queryKey: ['manufacturing_orders'] });
+        toast.success('Quotation accepted and Manufacturing Orders created');
+      } else {
+        toast.success('Quotation status updated');
+      }
     },
     onError: (error) => {
       toast.error(`Failed to update status: ${error.message}`);
