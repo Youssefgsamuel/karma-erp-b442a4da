@@ -65,7 +65,9 @@ export default function UsersPage() {
     roles: [] as AppRole[],
   });
 
-  const filteredUsers = users.filter(
+  // Filter out deactivated users and apply search
+  const activeUsers = users.filter((u) => u.is_active !== false);
+  const filteredUsers = activeUsers.filter(
     (u) =>
       u.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.email.toLowerCase().includes(searchQuery.toLowerCase())

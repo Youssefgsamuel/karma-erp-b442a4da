@@ -1,18 +1,36 @@
-import { useProducts } from '@/hooks/useProducts';
-import { useRawMaterials } from '@/hooks/useRawMaterials';
+import { useState } from 'react';
+import { useProducts, useUpdateProduct, useDeleteProduct } from '@/hooks/useProducts';
+import { useRawMaterials, useUpdateRawMaterial, useDeleteRawMaterial } from '@/hooks/useRawMaterials';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Warehouse, Package, Boxes, ArrowUpRight, ArrowDownRight, AlertTriangle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Warehouse, Package, Boxes, AlertTriangle, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
 import { DataTable, Column } from '@/components/ui/data-table';
 import type { Product, RawMaterial } from '@/types/erp';
 
 export default function Inventory() {
   const { data: products = [], isLoading: productsLoading } = useProducts();
   const { data: materials = [], isLoading: materialsLoading } = useRawMaterials();
+  const updateProduct = useUpdateProduct();
+  const deleteProduct = useDeleteProduct();
+  const updateMaterial = useUpdateRawMaterial();
+  const deleteMaterial = useDeleteRawMaterial();
 
   const isLoading = productsLoading || materialsLoading;
+
+  // Edit/delete state
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editingMaterial, setEditingMaterial] = useState<RawMaterial | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'product' | 'material'; item: Product | RawMaterial } | null>(null);
+  const [productFormData, setProductFormData] = useState({ current_stock: 0, minimum_stock: 0 });
+  const [materialFormData, setMaterialFormData] = useState({ current_stock: 0, minimum_stock: 0, reorder_point: 0 });
 
   const productValue = products.reduce(
     (sum, p) => sum + Number(p.current_stock) * Number(p.selling_price),
@@ -26,6 +44,42 @@ export default function Inventory() {
 
   const lowStockProducts = products.filter((p) => p.current_stock <= p.minimum_stock);
   const lowStockMaterials = materials.filter((m) => m.current_stock <= m.minimum_stock);
+
+  const handleEditProduct = (product: Product) => {
+    setEditingProduct(product);
+    setProductFormData({ current_stock: product.current_stock, minimum_stock: product.minimum_stock });
+  };
+
+  const handleEditMaterial = (material: RawMaterial) => {
+    setEditingMaterial(material);
+    setMaterialFormData({ 
+      current_stock: material.current_stock, 
+      minimum_stock: material.minimum_stock,
+      reorder_point: material.reorder_point 
+    });
+  };
+
+  const handleSaveProduct = async () => {
+    if (!editingProduct) return;
+    await updateProduct.mutateAsync({ id: editingProduct.id, ...productFormData });
+    setEditingProduct(null);
+  };
+
+  const handleSaveMaterial = async () => {
+    if (!editingMaterial) return;
+    await updateMaterial.mutateAsync({ id: editingMaterial.id, ...materialFormData });
+    setEditingMaterial(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirm) return;
+    if (deleteConfirm.type === 'product') {
+      await deleteProduct.mutateAsync(deleteConfirm.item.id);
+    } else {
+      await deleteMaterial.mutateAsync(deleteConfirm.item.id);
+    }
+    setDeleteConfirm(null);
+  };
 
   const productColumns: Column<Product>[] = [
     {
@@ -74,6 +128,28 @@ export default function Inventory() {
         <span className="font-medium">
           ${(Number(item.current_stock) * Number(item.selling_price)).toFixed(2)}
         </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      cell: (item) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleEditProduct(item)}>
+              <Edit className="mr-2 h-4 w-4" /> Edit Stock
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => setDeleteConfirm({ type: 'product', item })}
+              className="text-destructive"
+            >
+              <Trash2 className="mr-2 h-4 w-4" /> Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       ),
     },
   ];
@@ -126,6 +202,28 @@ export default function Inventory() {
         <span className="font-medium">
           ${(Number(item.current_stock) * Number(item.cost_per_unit)).toFixed(2)}
         </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      cell: (item) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleEditMaterial(item)}>
+              <Edit className="mr-2 h-4 w-4" /> Edit Stock
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => setDeleteConfirm({ type: 'material', item })}
+              className="text-destructive"
+            >
+              <Trash2 className="mr-2 h-4 w-4" /> Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       ),
     },
   ];
@@ -223,6 +321,105 @@ export default function Inventory() {
           />
         </TabsContent>
       </Tabs>
+
+      {/* Edit Product Dialog */}
+      <Dialog open={!!editingProduct} onOpenChange={() => setEditingProduct(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Product Stock</DialogTitle>
+            <DialogDescription>Update stock levels for {editingProduct?.name}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="product_stock">Current Stock</Label>
+              <Input
+                id="product_stock"
+                type="number"
+                value={productFormData.current_stock}
+                onChange={(e) => setProductFormData(prev => ({ ...prev, current_stock: Number(e.target.value) }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="product_min">Minimum Stock</Label>
+              <Input
+                id="product_min"
+                type="number"
+                value={productFormData.minimum_stock}
+                onChange={(e) => setProductFormData(prev => ({ ...prev, minimum_stock: Number(e.target.value) }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingProduct(null)}>Cancel</Button>
+            <Button onClick={handleSaveProduct} disabled={updateProduct.isPending}>
+              {updateProduct.isPending ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Material Dialog */}
+      <Dialog open={!!editingMaterial} onOpenChange={() => setEditingMaterial(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Material Stock</DialogTitle>
+            <DialogDescription>Update stock levels for {editingMaterial?.name}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="material_stock">Current Stock</Label>
+              <Input
+                id="material_stock"
+                type="number"
+                value={materialFormData.current_stock}
+                onChange={(e) => setMaterialFormData(prev => ({ ...prev, current_stock: Number(e.target.value) }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="material_min">Minimum Stock</Label>
+              <Input
+                id="material_min"
+                type="number"
+                value={materialFormData.minimum_stock}
+                onChange={(e) => setMaterialFormData(prev => ({ ...prev, minimum_stock: Number(e.target.value) }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="material_reorder">Reorder Point</Label>
+              <Input
+                id="material_reorder"
+                type="number"
+                value={materialFormData.reorder_point}
+                onChange={(e) => setMaterialFormData(prev => ({ ...prev, reorder_point: Number(e.target.value) }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingMaterial(null)}>Cancel</Button>
+            <Button onClick={handleSaveMaterial} disabled={updateMaterial.isPending}>
+              {updateMaterial.isPending ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleteConfirm?.type === 'product' ? 'Product' : 'Material'}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete "{deleteConfirm?.item && 'name' in deleteConfirm.item ? deleteConfirm.item.name : ''}". This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

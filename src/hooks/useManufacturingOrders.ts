@@ -133,10 +133,42 @@ export function useUpdateManufacturingOrder() {
         .single();
 
       if (error) throw error;
+
+      // If completed and no sales_order_id, add finished goods to inventory
+      if (updates.status === 'completed' && data && !data.sales_order_id) {
+        // Update product stock
+        const { data: product } = await supabase
+          .from('products')
+          .select('current_stock')
+          .eq('id', data.product_id)
+          .single();
+
+        if (product) {
+          const newStock = Number(product.current_stock) + Number(data.quantity);
+          await supabase
+            .from('products')
+            .update({ current_stock: newStock })
+            .eq('id', data.product_id);
+
+          // Record inventory transaction
+          await supabase
+            .from('inventory_transactions')
+            .insert({
+              product_id: data.product_id,
+              transaction_type: 'in' as const,
+              quantity: data.quantity,
+              reference_type: 'manufacturing_order',
+              reference_id: data.id,
+              notes: `Production completed for MO ${data.mo_number}`,
+            });
+        }
+      }
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['manufacturing_orders'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
       toast.success('Manufacturing Order updated');
     },
     onError: (error) => {
