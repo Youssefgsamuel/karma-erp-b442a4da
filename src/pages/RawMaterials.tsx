@@ -92,6 +92,7 @@ export default function RawMaterials() {
       minimum_stock: Number(material.minimum_stock),
       current_stock: Number(material.current_stock),
       reorder_point: Number(material.reorder_point),
+      supplier_id: material.supplier_id || '',
     });
     setIsAddingNew(true);
     setIsOpen(true);
@@ -110,6 +111,7 @@ export default function RawMaterials() {
         minimum_stock: Number(material.minimum_stock),
         current_stock: 0, // User will enter quantity to add
         reorder_point: Number(material.reorder_point),
+        supplier_id: material.supplier_id || '',
       });
       setEditingMaterial(material);
     }
