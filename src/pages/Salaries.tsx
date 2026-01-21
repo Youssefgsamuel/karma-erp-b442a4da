@@ -714,7 +714,7 @@ export default function Salaries() {
               <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting || !formData.employee_id || !formData.employee_number}>
+              <Button type="submit" disabled={isSubmitting || !formData.employee_name || !formData.employee_number}>
                 {isSubmitting ? (editingSalary ? 'Updating...' : 'Creating...') : (editingSalary ? 'Update' : 'Create')}
               </Button>
             </DialogFooter>
