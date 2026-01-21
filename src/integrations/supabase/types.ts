@@ -410,6 +410,7 @@ export type Database = {
           customer_email: string | null
           customer_id: string | null
           customer_name: string
+          customer_phone: string | null
           discount_percent: number
           id: string
           notes: string | null
@@ -428,6 +429,7 @@ export type Database = {
           customer_email?: string | null
           customer_id?: string | null
           customer_name: string
+          customer_phone?: string | null
           discount_percent?: number
           id?: string
           notes?: string | null
@@ -446,6 +448,7 @@ export type Database = {
           customer_email?: string | null
           customer_id?: string | null
           customer_name?: string
+          customer_phone?: string | null
           discount_percent?: number
           id?: string
           notes?: string | null
@@ -527,7 +530,8 @@ export type Database = {
           bonus: number
           created_at: string
           created_by: string | null
-          employee_id: string
+          employee_id: string | null
+          employee_name: string | null
           employee_number: string
           housing_allowance: number
           id: string
@@ -552,7 +556,8 @@ export type Database = {
           bonus?: number
           created_at?: string
           created_by?: string | null
-          employee_id: string
+          employee_id?: string | null
+          employee_name?: string | null
           employee_number: string
           housing_allowance?: number
           id?: string
@@ -577,7 +582,8 @@ export type Database = {
           bonus?: number
           created_at?: string
           created_by?: string | null
-          employee_id?: string
+          employee_id?: string | null
+          employee_name?: string | null
           employee_number?: string
           housing_allowance?: number
           id?: string

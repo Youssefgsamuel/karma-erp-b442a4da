@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useUsers, useCreateUser, useUpdateUserRoles, UserWithRoles } from '@/hooks/useUsers';
+import { useUsers, useCreateUser, useUpdateUserRoles, useDeactivateUser, useReactivateUser, UserWithRoles } from '@/hooks/useUsers';
 import { useAuth } from '@/contexts/AuthContext';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable, Column } from '@/components/ui/data-table';
@@ -22,9 +22,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Users, Plus, MoreHorizontal, Shield, Search, UserCog } from 'lucide-react';
+import { Users, Plus, MoreHorizontal, Shield, Search, UserCog, UserX, UserCheck } from 'lucide-react';
 import type { AppRole } from '@/types/erp';
 
 const ROLES: { value: AppRole; label: string; description: string }[] = [
@@ -50,6 +51,8 @@ export default function UsersPage() {
   const { data: users = [], isLoading } = useUsers();
   const createUser = useCreateUser();
   const updateRoles = useUpdateUserRoles();
+  const deactivateUser = useDeactivateUser();
+  const reactivateUser = useReactivateUser();
 
   const [isOpen, setIsOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserWithRoles | null>(null);
@@ -100,9 +103,16 @@ export default function UsersPage() {
       key: 'name',
       header: 'User',
       cell: (item) => (
-        <div>
-          <p className="font-medium">{item.full_name}</p>
-          <p className="text-sm text-muted-foreground">{item.email}</p>
+        <div className="flex items-center gap-2">
+          <div>
+            <p className="font-medium">{item.full_name}</p>
+            <p className="text-sm text-muted-foreground">{item.email}</p>
+          </div>
+          {item.is_active === false && (
+            <Badge variant="secondary" className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+              Inactive
+            </Badge>
+          )}
         </div>
       ),
     },
@@ -152,6 +162,23 @@ export default function UsersPage() {
               <UserCog className="mr-2 h-4 w-4" />
               Manage Roles
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {item.is_active !== false ? (
+              <DropdownMenuItem 
+                className="text-destructive"
+                onClick={() => deactivateUser.mutate(item.user_id)}
+              >
+                <UserX className="mr-2 h-4 w-4" />
+                Deactivate User
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem 
+                onClick={() => reactivateUser.mutate(item.user_id)}
+              >
+                <UserCheck className="mr-2 h-4 w-4" />
+                Reactivate User
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       ),

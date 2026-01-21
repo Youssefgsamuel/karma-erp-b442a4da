@@ -18,7 +18,7 @@ export function useSalaries() {
         .order('month', { ascending: false });
       
       if (error) throw error;
-      return data as (Salary & { employee: any; job_category: JobCategory | null })[];
+      return data as (Salary & { employee: any; job_category: JobCategory | null; employee_name: string | null })[];
     },
   });
 }
@@ -101,7 +101,8 @@ export function useDeleteJobCategory() {
 }
 
 interface CreateSalaryInput {
-  employee_id: string;
+  employee_id?: string;
+  employee_name?: string;
   employee_number: string;
   work_location?: string;
   job_category_id?: string;

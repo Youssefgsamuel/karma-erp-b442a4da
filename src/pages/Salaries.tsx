@@ -42,6 +42,7 @@ const MONTHS = [
 
 const initialFormData = {
   employee_id: '',
+  employee_name: '',
   employee_number: '',
   work_location: '',
   job_category_id: '',
@@ -59,6 +60,7 @@ const initialFormData = {
   month: new Date().getMonth() + 1,
   year: new Date().getFullYear(),
   notes: '',
+  amount_paid: 0,
 };
 
 export default function Salaries() {
@@ -106,7 +108,8 @@ export default function Salaries() {
   const handleEdit = (salary: Salary) => {
     setEditingSalary(salary);
     setFormData({
-      employee_id: salary.employee_id,
+      employee_id: salary.employee_id || '',
+      employee_name: (salary as any).employee_name || salary.employee?.full_name || '',
       employee_number: salary.employee_number,
       work_location: salary.work_location || '',
       job_category_id: salary.job_category_id || '',
@@ -124,6 +127,7 @@ export default function Salaries() {
       month: salary.month,
       year: salary.year,
       notes: salary.notes || '',
+      amount_paid: 0,
     });
     setIsOpen(true);
   };
@@ -142,9 +146,25 @@ export default function Salaries() {
     e.preventDefault();
     
     const payload = {
-      ...formData,
+      employee_id: formData.employee_id || undefined,
+      employee_name: formData.employee_name || undefined,
+      employee_number: formData.employee_number,
+      work_location: formData.work_location || undefined,
       job_category_id: formData.job_category_id || undefined,
+      base_salary: formData.base_salary,
+      housing_allowance: formData.housing_allowance,
+      transport_allowance: formData.transport_allowance,
+      other_allowances: formData.other_allowances,
+      overtime_hours: formData.overtime_hours,
+      overtime_rate: formData.overtime_rate,
+      bonus: formData.bonus,
+      tax_deduction: formData.tax_deduction,
+      other_deductions: formData.other_deductions,
       payment_date: formData.payment_date || undefined,
+      payment_status: formData.payment_status,
+      month: formData.month,
+      year: formData.year,
+      notes: formData.notes || undefined,
     };
 
     if (editingSalary) {
@@ -178,7 +198,7 @@ export default function Salaries() {
       header: 'Employee',
       cell: (item) => (
         <div>
-          <p className="font-medium">{item.employee?.full_name || 'Unknown'}</p>
+          <p className="font-medium">{(item as any).employee_name || item.employee?.full_name || 'Unknown'}</p>
           <p className="text-sm text-muted-foreground">#{item.employee_number}</p>
         </div>
       ),
@@ -409,15 +429,31 @@ export default function Salaries() {
             
             <div className="grid gap-4 py-4">
               {/* Employee Selection */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label>Employee *</Label>
+                  <Label>Employee Name *</Label>
+                  <Input
+                    value={formData.employee_name}
+                    onChange={(e) => setFormData({ ...formData, employee_name: e.target.value, employee_id: '' })}
+                    placeholder="Enter employee name"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Link to User (Optional)</Label>
                   <Select
                     value={formData.employee_id}
-                    onValueChange={(value) => setFormData({ ...formData, employee_id: value })}
+                    onValueChange={(value) => {
+                      const user = activeUsers.find(u => u.id === value);
+                      setFormData({ 
+                        ...formData, 
+                        employee_id: value,
+                        employee_name: user?.full_name || formData.employee_name
+                      });
+                    }}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select employee" />
+                      <SelectValue placeholder="Select user (optional)" />
                     </SelectTrigger>
                     <SelectContent>
                       {activeUsers.map((user) => (

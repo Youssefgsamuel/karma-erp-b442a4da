@@ -43,12 +43,10 @@ export default function BOM() {
 
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [formData, setFormData] = useState({
-    product_id: '',
-    raw_material_id: '',
-    quantity: 1,
-    notes: '',
-  });
+  const [selectedProductId, setSelectedProductId] = useState('');
+  const [materials, setMaterials] = useState([
+    { raw_material_id: '', quantity: 1, notes: '' }
+  ]);
 
   const filteredBomItems = bomItems.filter(
     (item) =>
@@ -56,24 +54,45 @@ export default function BOM() {
       item.raw_material?.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await createBomItem.mutateAsync({
-      product_id: formData.product_id,
-      raw_material_id: formData.raw_material_id,
-      quantity: formData.quantity,
-      notes: formData.notes || undefined,
-    });
-    setIsOpen(false);
-    setFormData({
-      product_id: '',
-      raw_material_id: '',
-      quantity: 1,
-      notes: '',
-    });
+  const handleAddMaterial = () => {
+    setMaterials(prev => [...prev, { raw_material_id: '', quantity: 1, notes: '' }]);
   };
 
-  const selectedMaterial = rawMaterials.find(m => m.id === formData.raw_material_id);
+  const handleRemoveMaterial = (index: number) => {
+    setMaterials(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleMaterialChange = (index: number, field: string, value: string | number) => {
+    setMaterials(prev => prev.map((m, i) => 
+      i === index ? { ...m, [field]: value } : m
+    ));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Create all BOM items
+    for (const material of materials) {
+      if (material.raw_material_id) {
+        await createBomItem.mutateAsync({
+          product_id: selectedProductId,
+          raw_material_id: material.raw_material_id,
+          quantity: material.quantity,
+          notes: material.notes || undefined,
+        });
+      }
+    }
+    
+    setIsOpen(false);
+    setSelectedProductId('');
+    setMaterials([{ raw_material_id: '', quantity: 1, notes: '' }]);
+  };
+
+  const validMaterials = materials.filter(m => m.raw_material_id);
+  const totalMaterialCost = validMaterials.reduce((sum, m) => {
+    const material = rawMaterials.find(rm => rm.id === m.raw_material_id);
+    return sum + (m.quantity * Number(material?.cost_per_unit || 0));
+  }, 0);
 
   const columns: Column<BomItemWithDetails>[] = [
     {
@@ -150,23 +169,23 @@ export default function BOM() {
       <DialogTrigger asChild>
         <Button>
           <Plus className="mr-2 h-4 w-4" />
-          Add BOM Item
+          Add BOM Items
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Add BOM Item</DialogTitle>
+            <DialogTitle>Add BOM Items</DialogTitle>
             <DialogDescription>
-              Define a raw material requirement for a product.
+              Add multiple raw materials to a product's bill of materials.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="product">Product *</Label>
               <Select
-                value={formData.product_id}
-                onValueChange={(value) => setFormData({ ...formData, product_id: value })}
+                value={selectedProductId}
+                onValueChange={setSelectedProductId}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a product" />
@@ -180,47 +199,84 @@ export default function BOM() {
                 </SelectContent>
               </Select>
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="material">Raw Material *</Label>
-              <Select
-                value={formData.raw_material_id}
-                onValueChange={(value) => setFormData({ ...formData, raw_material_id: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a raw material" />
-                </SelectTrigger>
-                <SelectContent>
-                  {rawMaterials.map((material) => (
-                    <SelectItem key={material.id} value={material.id}>
-                      {material.name} ({material.sku}) - ${Number(material.cost_per_unit).toFixed(2)}/{material.unit}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center justify-between">
+                <Label>Raw Materials *</Label>
+                <Button type="button" variant="outline" size="sm" onClick={handleAddMaterial}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Material
+                </Button>
+              </div>
+              
+              <div className="space-y-3">
+                {materials.map((material, index) => {
+                  const selectedMaterial = rawMaterials.find(m => m.id === material.raw_material_id);
+                  return (
+                    <div key={index} className="flex gap-2 items-start p-3 rounded-lg border bg-muted/30">
+                      <div className="flex-1 space-y-2">
+                        <Select
+                          value={material.raw_material_id}
+                          onValueChange={(value) => handleMaterialChange(index, 'raw_material_id', value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select raw material" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {rawMaterials.map((rm) => (
+                              <SelectItem key={rm.id} value={rm.id}>
+                                {rm.name} ({rm.sku}) - ${Number(rm.cost_per_unit).toFixed(2)}/{rm.unit}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="w-24">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          placeholder="Qty"
+                          value={material.quantity}
+                          onChange={(e) => handleMaterialChange(index, 'quantity', parseFloat(e.target.value) || 1)}
+                        />
+                        {selectedMaterial && (
+                          <span className="text-xs text-muted-foreground">{selectedMaterial.unit}</span>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <Input
+                          placeholder="Notes (optional)"
+                          value={material.notes}
+                          onChange={(e) => handleMaterialChange(index, 'notes', e.target.value)}
+                        />
+                      </div>
+                      {materials.length > 1 && (
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => handleRemoveMaterial(index)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="quantity">
-                Quantity Required {selectedMaterial && `(${selectedMaterial.unit})`} *
-              </Label>
-              <Input
-                id="quantity"
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={formData.quantity}
-                onChange={(e) => setFormData({ ...formData, quantity: parseFloat(e.target.value) || 1 })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                placeholder="Optional notes about this material requirement..."
-              />
-            </div>
+
+            {validMaterials.length > 0 && (
+              <div className="bg-muted p-4 rounded-lg">
+                <p className="text-sm font-medium">
+                  Total Material Cost: <span className="text-primary">${totalMaterialCost.toFixed(2)}</span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {validMaterials.length} material(s) selected
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
@@ -228,9 +284,9 @@ export default function BOM() {
             </Button>
             <Button 
               type="submit" 
-              disabled={createBomItem.isPending || !formData.product_id || !formData.raw_material_id}
+              disabled={createBomItem.isPending || !selectedProductId || validMaterials.length === 0}
             >
-              {createBomItem.isPending ? 'Adding...' : 'Add Item'}
+              {createBomItem.isPending ? 'Adding...' : `Add ${validMaterials.length} Item(s)`}
             </Button>
           </DialogFooter>
         </form>
