@@ -6,6 +6,8 @@ export type ProductType = 'in_house' | 'outsourced';
 
 export type InventoryTransactionType = 'in' | 'out' | 'adjustment';
 
+export type PaymentStatus = 'pending' | 'paid' | 'cancelled';
+
 export interface Profile {
   id: string;
   user_id: string;
@@ -13,6 +15,7 @@ export interface Profile {
   email: string;
   phone?: string;
   avatar_url?: string;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -31,6 +34,13 @@ export interface Category {
   created_at: string;
 }
 
+export interface JobCategory {
+  id: string;
+  name: string;
+  description?: string;
+  created_at: string;
+}
+
 export interface RawMaterial {
   id: string;
   sku: string;
@@ -41,6 +51,8 @@ export interface RawMaterial {
   minimum_stock: number;
   current_stock: number;
   reorder_point: number;
+  supplier_id?: string;
+  supplier?: Supplier;
   created_at: string;
   updated_at: string;
 }
@@ -54,6 +66,7 @@ export interface Product {
   product_type: ProductType;
   unit: UnitOfMeasure;
   selling_price: number;
+  cost_price: number;
   manufacturing_time_minutes: number;
   minimum_stock: number;
   current_stock: number;
@@ -98,6 +111,41 @@ export interface Supplier {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface SupplierWithStats extends Supplier {
+  total_quantity: number;
+  total_spent: number;
+  avg_unit_price: number;
+  materials_count: number;
+}
+
+export interface Salary {
+  id: string;
+  employee_id: string;
+  employee_number: string;
+  work_location?: string;
+  job_category_id?: string;
+  base_salary: number;
+  housing_allowance: number;
+  transport_allowance: number;
+  other_allowances: number;
+  overtime_hours: number;
+  overtime_rate: number;
+  bonus: number;
+  tax_deduction: number;
+  other_deductions: number;
+  net_pay: number;
+  payment_date?: string;
+  payment_status: PaymentStatus;
+  month: number;
+  year: number;
+  notes?: string;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+  employee?: Profile;
+  job_category?: JobCategory;
 }
 
 export interface StockAlert {

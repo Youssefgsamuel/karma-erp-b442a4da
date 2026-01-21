@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import type { Supplier } from '@/types/erp';
+import type { Supplier, SupplierWithStats } from '@/types/erp';
 import { useToast } from '@/hooks/use-toast';
 
 export function useSuppliers() {
@@ -14,6 +14,50 @@ export function useSuppliers() {
       
       if (error) throw error;
       return data as Supplier[];
+    },
+  });
+}
+
+export function useSuppliersWithStats() {
+  return useQuery({
+    queryKey: ['suppliers-with-stats'],
+    queryFn: async () => {
+      // Get suppliers
+      const { data: suppliers, error: suppliersError } = await supabase
+        .from('suppliers')
+        .select('*')
+        .order('name');
+      
+      if (suppliersError) throw suppliersError;
+
+      // Get raw materials with supplier info
+      const { data: materials, error: materialsError } = await supabase
+        .from('raw_materials')
+        .select('supplier_id, current_stock, cost_per_unit');
+      
+      if (materialsError) throw materialsError;
+
+      // Calculate stats for each supplier
+      const suppliersWithStats: SupplierWithStats[] = (suppliers || []).map((supplier) => {
+        const supplierMaterials = (materials || []).filter((m) => m.supplier_id === supplier.id);
+        
+        const total_quantity = supplierMaterials.reduce((sum, m) => sum + Number(m.current_stock), 0);
+        const total_spent = supplierMaterials.reduce((sum, m) => sum + (Number(m.current_stock) * Number(m.cost_per_unit)), 0);
+        const materials_count = supplierMaterials.length;
+        const avg_unit_price = materials_count > 0 
+          ? supplierMaterials.reduce((sum, m) => sum + Number(m.cost_per_unit), 0) / materials_count 
+          : 0;
+
+        return {
+          ...supplier,
+          total_quantity,
+          total_spent,
+          avg_unit_price,
+          materials_count,
+        };
+      });
+
+      return suppliersWithStats;
     },
   });
 }
@@ -44,6 +88,7 @@ export function useCreateSupplier() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      queryClient.invalidateQueries({ queryKey: ['suppliers-with-stats'] });
       toast({
         title: 'Supplier Created',
         description: 'The supplier has been created successfully.',
@@ -77,6 +122,7 @@ export function useUpdateSupplier() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      queryClient.invalidateQueries({ queryKey: ['suppliers-with-stats'] });
       toast({
         title: 'Supplier Updated',
         description: 'The supplier has been updated successfully.',
@@ -107,6 +153,7 @@ export function useDeleteSupplier() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      queryClient.invalidateQueries({ queryKey: ['suppliers-with-stats'] });
       toast({
         title: 'Supplier Deleted',
         description: 'The supplier has been deleted successfully.',

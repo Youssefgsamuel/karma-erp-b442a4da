@@ -15,6 +15,7 @@ import Manufacturing from "./pages/Manufacturing";
 import Suppliers from "./pages/Suppliers";
 import Quotations from "./pages/Quotations";
 import Finance from "./pages/Finance";
+import Salaries from "./pages/Salaries";
 import UsersPage from "./pages/Users";
 import SettingsPage from "./pages/Settings";
 import NotFound from "./pages/NotFound";
@@ -61,6 +62,7 @@ function AppRoutes() {
         <Route path="/suppliers" element={<Suppliers />} />
         <Route path="/quotations" element={<Quotations />} />
         <Route path="/finance" element={<Finance />} />
+        <Route path="/salaries" element={<Salaries />} />
         <Route path="/users" element={<UsersPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>

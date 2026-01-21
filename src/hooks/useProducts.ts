@@ -49,6 +49,7 @@ interface CreateProductInput {
   product_type: ProductType;
   unit: UnitOfMeasure;
   selling_price: number;
+  cost_price: number;
   manufacturing_time_minutes: number;
   minimum_stock: number;
   current_stock: number;

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import type { RawMaterial, UnitOfMeasure } from '@/types/erp';
+import type { RawMaterial, UnitOfMeasure, Supplier } from '@/types/erp';
 import { useToast } from '@/hooks/use-toast';
 
 export function useRawMaterials() {
@@ -9,11 +9,14 @@ export function useRawMaterials() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('raw_materials')
-        .select('*')
+        .select(`
+          *,
+          supplier:suppliers(*)
+        `)
         .order('name');
       
       if (error) throw error;
-      return data as RawMaterial[];
+      return data as (RawMaterial & { supplier: Supplier | null })[];
     },
   });
 }
@@ -24,12 +27,15 @@ export function useRawMaterial(id: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('raw_materials')
-        .select('*')
+        .select(`
+          *,
+          supplier:suppliers(*)
+        `)
         .eq('id', id)
         .single();
       
       if (error) throw error;
-      return data as RawMaterial;
+      return data as RawMaterial & { supplier: Supplier | null };
     },
     enabled: !!id,
   });
@@ -44,6 +50,7 @@ interface CreateRawMaterialInput {
   minimum_stock: number;
   current_stock: number;
   reorder_point: number;
+  supplier_id?: string;
 }
 
 export function useCreateRawMaterial() {
@@ -63,6 +70,7 @@ export function useCreateRawMaterial() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['raw-materials'] });
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
       toast({
         title: 'Raw Material Created',
         description: 'The raw material has been created successfully.',
@@ -96,6 +104,7 @@ export function useUpdateRawMaterial() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['raw-materials'] });
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
       toast({
         title: 'Raw Material Updated',
         description: 'The raw material has been updated successfully.',
@@ -126,6 +135,7 @@ export function useDeleteRawMaterial() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['raw-materials'] });
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
       toast({
         title: 'Raw Material Deleted',
         description: 'The raw material has been deleted successfully.',

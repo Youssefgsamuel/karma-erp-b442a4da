@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useRawMaterials, useCreateRawMaterial, useUpdateRawMaterial, useDeleteRawMaterial } from '@/hooks/useRawMaterials';
+import { useSuppliers } from '@/hooks/useSuppliers';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -15,7 +16,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Select,
@@ -31,7 +31,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Boxes, Plus, MoreHorizontal, Pencil, Trash2, Search, AlertTriangle } from 'lucide-react';
-import type { RawMaterial, UnitOfMeasure } from '@/types/erp';
+import type { RawMaterial, UnitOfMeasure, Supplier } from '@/types/erp';
 
 const unitOptions: UnitOfMeasure[] = ['pcs', 'kg', 'g', 'l', 'ml', 'm', 'cm', 'mm', 'box', 'pack'];
 
@@ -44,10 +44,12 @@ const initialFormData = {
   minimum_stock: 0,
   current_stock: 0,
   reorder_point: 0,
+  supplier_id: '',
 };
 
 export default function RawMaterials() {
   const { data: materials = [], isLoading } = useRawMaterials();
+  const { data: suppliers = [] } = useSuppliers();
   const createMaterial = useCreateRawMaterial();
   const updateMaterial = useUpdateRawMaterial();
   const deleteMaterial = useDeleteRawMaterial();
