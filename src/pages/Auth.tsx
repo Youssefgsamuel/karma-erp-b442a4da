@@ -127,9 +127,9 @@ export default function Auth() {
     } else {
       toast({
         title: 'Account Created',
-        description: 'Welcome to ManufactERP! You can now sign in.',
+        description: 'Your account is pending approval from an administrator.',
       });
-      navigate('/dashboard');
+      navigate('/pending-approval');
     }
   };
 
