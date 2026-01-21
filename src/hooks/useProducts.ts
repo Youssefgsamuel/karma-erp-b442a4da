@@ -126,6 +126,39 @@ export function useDeleteProduct() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      // Check if product is used in quotation_items
+      const { data: quotationItems } = await supabase
+        .from('quotation_items')
+        .select('id')
+        .eq('product_id', id)
+        .limit(1);
+      
+      if (quotationItems && quotationItems.length > 0) {
+        throw new Error('Cannot delete: This product is used in quotations. Remove it from quotations first.');
+      }
+
+      // Check if product is used in bom_items
+      const { data: bomItems } = await supabase
+        .from('bom_items')
+        .select('id')
+        .eq('product_id', id)
+        .limit(1);
+      
+      if (bomItems && bomItems.length > 0) {
+        throw new Error('Cannot delete: This product has a Bill of Materials. Remove the BOM first.');
+      }
+
+      // Check if product is used in manufacturing_orders
+      const { data: moItems } = await supabase
+        .from('manufacturing_orders')
+        .select('id')
+        .eq('product_id', id)
+        .limit(1);
+      
+      if (moItems && moItems.length > 0) {
+        throw new Error('Cannot delete: This product has manufacturing orders. Delete those first.');
+      }
+
       const { error } = await supabase
         .from('products')
         .delete()
