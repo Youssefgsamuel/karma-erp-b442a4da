@@ -38,6 +38,7 @@ const navItems: NavItem[] = [
   { title: 'Suppliers', href: '/suppliers', icon: Truck, roles: ['admin', 'purchasing', 'inventory_manager'] },
   { title: 'Quotations', href: '/quotations', icon: FileText, roles: ['admin', 'cfo'] },
   { title: 'Finance', href: '/finance', icon: DollarSign, roles: ['admin', 'cfo'] },
+  { title: 'Salaries', href: '/salaries', icon: DollarSign, roles: ['admin', 'hr', 'cfo'] },
   { title: 'Users', href: '/users', icon: Users, roles: ['admin', 'hr'] },
   { title: 'Settings', href: '/settings', icon: Settings, roles: ['admin'] },
 ];

@@ -29,6 +29,7 @@ export function useUsers() {
       // Combine profiles with their roles
       const usersWithRoles: UserWithRoles[] = (profiles || []).map((profile) => ({
         ...profile,
+        is_active: profile.is_active ?? true,
         roles: (roles || [])
           .filter((r) => r.user_id === profile.user_id)
           .map((r) => r.role as AppRole),
@@ -146,6 +147,67 @@ export function useUpdateUserRoles() {
       toast({
         title: 'Roles Updated',
         description: 'User roles have been updated successfully.',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.message,
+      });
+    },
+  });
+}
+
+export function useDeactivateUser() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      // Soft delete: set is_active to false
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_active: false })
+        .eq('user_id', userId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast({
+        title: 'User Deactivated',
+        description: 'The user has been deactivated. Historical data is preserved.',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.message,
+      });
+    },
+  });
+}
+
+export function useReactivateUser() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_active: true })
+        .eq('user_id', userId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast({
+        title: 'User Reactivated',
+        description: 'The user has been reactivated.',
       });
     },
     onError: (error: Error) => {

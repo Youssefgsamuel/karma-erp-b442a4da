@@ -44,6 +44,7 @@ const initialFormData = {
   product_type: 'in_house' as ProductType,
   unit: 'pcs' as UnitOfMeasure,
   selling_price: 0,
+  cost_price: 0,
   manufacturing_time_minutes: 60,
   minimum_stock: 0,
   current_stock: 0,
@@ -94,6 +95,7 @@ export default function Products() {
       product_type: product.product_type,
       unit: product.unit,
       selling_price: Number(product.selling_price),
+      cost_price: Number(product.cost_price),
       manufacturing_time_minutes: product.manufacturing_time_minutes,
       minimum_stock: Number(product.minimum_stock),
       current_stock: Number(product.current_stock),
@@ -162,8 +164,27 @@ export default function Products() {
     },
     {
       key: 'price',
-      header: 'Selling Price',
-      cell: (item) => <span>${Number(item.selling_price).toFixed(2)}</span>,
+      header: 'Price',
+      cell: (item) => (
+        <div>
+          <p className="font-medium">${Number(item.selling_price).toFixed(2)}</p>
+          <p className="text-xs text-muted-foreground">Cost: ${Number(item.cost_price).toFixed(2)}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'profit',
+      header: 'Profit',
+      cell: (item) => {
+        const profit = Number(item.selling_price) - Number(item.cost_price);
+        const margin = item.selling_price > 0 ? (profit / Number(item.selling_price)) * 100 : 0;
+        return (
+          <div>
+            <p className={profit >= 0 ? 'text-green-600' : 'text-destructive'}>${profit.toFixed(2)}</p>
+            <p className="text-xs text-muted-foreground">{margin.toFixed(1)}%</p>
+          </div>
+        );
+      },
     },
     {
       key: 'stock',
@@ -481,6 +502,19 @@ function ProductDialog({
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dialog-cost">Cost Price ($)</Label>
+                <Input
+                  id="dialog-cost"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.cost_price}
+                  onChange={(e) =>
+                    setFormData({ ...formData, cost_price: parseFloat(e.target.value) || 0 })
+                  }
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="dialog-price">Selling Price ($)</Label>

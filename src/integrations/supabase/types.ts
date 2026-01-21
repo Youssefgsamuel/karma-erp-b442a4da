@@ -167,6 +167,27 @@ export type Database = {
           },
         ]
       }
+      job_categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       manufacturing_orders: {
         Row: {
           actual_end: string | null
@@ -239,6 +260,7 @@ export type Database = {
       products: {
         Row: {
           category_id: string | null
+          cost_price: number
           created_at: string
           current_stock: number
           description: string | null
@@ -255,6 +277,7 @@ export type Database = {
         }
         Insert: {
           category_id?: string | null
+          cost_price?: number
           created_at?: string
           current_stock?: number
           description?: string | null
@@ -271,6 +294,7 @@ export type Database = {
         }
         Update: {
           category_id?: string | null
+          cost_price?: number
           created_at?: string
           current_stock?: number
           description?: string | null
@@ -302,6 +326,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          is_active: boolean
           phone: string | null
           updated_at: string
           user_id: string
@@ -312,6 +337,7 @@ export type Database = {
           email: string
           full_name: string
           id?: string
+          is_active?: boolean
           phone?: string | null
           updated_at?: string
           user_id: string
@@ -322,6 +348,7 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          is_active?: boolean
           phone?: string | null
           updated_at?: string
           user_id?: string
@@ -452,6 +479,7 @@ export type Database = {
           name: string
           reorder_point: number
           sku: string
+          supplier_id: string | null
           unit: Database["public"]["Enums"]["unit_of_measure"]
           updated_at: string
         }
@@ -465,6 +493,7 @@ export type Database = {
           name: string
           reorder_point?: number
           sku: string
+          supplier_id?: string | null
           unit?: Database["public"]["Enums"]["unit_of_measure"]
           updated_at?: string
         }
@@ -478,10 +507,112 @@ export type Database = {
           name?: string
           reorder_point?: number
           sku?: string
+          supplier_id?: string | null
           unit?: Database["public"]["Enums"]["unit_of_measure"]
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "raw_materials_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      salaries: {
+        Row: {
+          base_salary: number
+          bonus: number
+          created_at: string
+          created_by: string | null
+          employee_id: string
+          employee_number: string
+          housing_allowance: number
+          id: string
+          job_category_id: string | null
+          month: number
+          net_pay: number | null
+          notes: string | null
+          other_allowances: number
+          other_deductions: number
+          overtime_hours: number
+          overtime_rate: number
+          payment_date: string | null
+          payment_status: string
+          tax_deduction: number
+          transport_allowance: number
+          updated_at: string
+          work_location: string | null
+          year: number
+        }
+        Insert: {
+          base_salary?: number
+          bonus?: number
+          created_at?: string
+          created_by?: string | null
+          employee_id: string
+          employee_number: string
+          housing_allowance?: number
+          id?: string
+          job_category_id?: string | null
+          month: number
+          net_pay?: number | null
+          notes?: string | null
+          other_allowances?: number
+          other_deductions?: number
+          overtime_hours?: number
+          overtime_rate?: number
+          payment_date?: string | null
+          payment_status?: string
+          tax_deduction?: number
+          transport_allowance?: number
+          updated_at?: string
+          work_location?: string | null
+          year: number
+        }
+        Update: {
+          base_salary?: number
+          bonus?: number
+          created_at?: string
+          created_by?: string | null
+          employee_id?: string
+          employee_number?: string
+          housing_allowance?: number
+          id?: string
+          job_category_id?: string | null
+          month?: number
+          net_pay?: number | null
+          notes?: string | null
+          other_allowances?: number
+          other_deductions?: number
+          overtime_hours?: number
+          overtime_rate?: number
+          payment_date?: string | null
+          payment_status?: string
+          tax_deduction?: number
+          transport_allowance?: number
+          updated_at?: string
+          work_location?: string | null
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "salaries_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "salaries_job_category_id_fkey"
+            columns: ["job_category_id"]
+            isOneToOne: false
+            referencedRelation: "job_categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sales_orders: {
         Row: {
