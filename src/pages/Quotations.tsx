@@ -159,8 +159,8 @@ export default function Quotations() {
           )}
           {q.status === 'sent' && (
             <>
-              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: q.id, status: 'accepted' })}>
-                <Check className="mr-2 h-4 w-4" /> Mark Accepted
+              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: q.id, status: 'accepted', createMO: true })}>
+                <Check className="mr-2 h-4 w-4" /> Mark Accepted & Create MO
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => updateStatus.mutate({ id: q.id, status: 'rejected' })}>
                 <X className="mr-2 h-4 w-4" /> Mark Rejected
