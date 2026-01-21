@@ -16,6 +16,9 @@ export interface Profile {
   phone?: string;
   avatar_url?: string;
   is_active: boolean;
+  is_approved: boolean;
+  approved_by?: string;
+  approved_at?: string;
   created_at: string;
   updated_at: string;
 }

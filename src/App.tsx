@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { MainLayout } from "@/components/layout/MainLayout";
 import Auth from "./pages/Auth";
+import PendingApproval from "./pages/PendingApproval";
 import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
 import RawMaterials from "./pages/RawMaterials";
@@ -25,7 +26,7 @@ import { Loader2 } from "lucide-react";
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, isApproved } = useAuth();
 
   if (loading) {
     return (
@@ -39,6 +40,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/auth" replace />;
   }
 
+  // Redirect to pending approval page if not approved
+  if (!isApproved) {
+    return <Navigate to="/pending-approval" replace />;
+  }
+
   return <>{children}</>;
 }
 
@@ -46,6 +52,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/auth" element={<Auth />} />
+      <Route path="/pending-approval" element={<PendingApproval />} />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route
         element={

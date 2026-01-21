@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useUsers, useCreateUser, useUpdateUserRoles, useDeactivateUser, useReactivateUser, UserWithRoles } from '@/hooks/useUsers';
+import { useUsers, useCreateUser, useUpdateUserRoles, useDeactivateUser, useReactivateUser, useApproveUser, UserWithRoles } from '@/hooks/useUsers';
 import { useAuth } from '@/contexts/AuthContext';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable, Column } from '@/components/ui/data-table';
@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -25,7 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Users, Plus, MoreHorizontal, Shield, Search, UserCog, UserX, UserCheck } from 'lucide-react';
+import { Users, Plus, MoreHorizontal, Shield, Search, UserCog, UserX, UserCheck, Clock, CheckCircle } from 'lucide-react';
 import type { AppRole } from '@/types/erp';
 
 const ROLES: { value: AppRole; label: string; description: string }[] = [
@@ -53,7 +54,7 @@ export default function UsersPage() {
   const updateRoles = useUpdateUserRoles();
   const deactivateUser = useDeactivateUser();
   const reactivateUser = useReactivateUser();
-
+  const approveUser = useApproveUser();
   const [isOpen, setIsOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserWithRoles | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -65,9 +66,15 @@ export default function UsersPage() {
     roles: [] as AppRole[],
   });
 
-  // Filter out deactivated users and apply search
-  const activeUsers = users.filter((u) => u.is_active !== false);
-  const filteredUsers = activeUsers.filter(
+  // Separate users into approved, pending, and deactivated
+  const pendingUsers = users.filter((u) => u.is_approved === false && u.is_active !== false);
+  const approvedActiveUsers = users.filter((u) => u.is_approved === true && u.is_active !== false);
+  const filteredApprovedUsers = approvedActiveUsers.filter(
+    (u) =>
+      u.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      u.email.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  const filteredPendingUsers = pendingUsers.filter(
     (u) =>
       u.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.email.toLowerCase().includes(searchQuery.toLowerCase())
@@ -185,6 +192,58 @@ export default function UsersPage() {
         </DropdownMenu>
       ),
       className: 'w-12',
+    },
+  ];
+
+  const pendingColumns: Column<UserWithRoles>[] = [
+    {
+      key: 'name',
+      header: 'User',
+      cell: (item) => (
+        <div>
+          <p className="font-medium">{item.full_name}</p>
+          <p className="text-sm text-muted-foreground">{item.email}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'phone',
+      header: 'Phone',
+      cell: (item) => <span className="text-muted-foreground">{item.phone || '—'}</span>,
+    },
+    {
+      key: 'requested',
+      header: 'Requested',
+      cell: (item) => (
+        <span className="text-muted-foreground">
+          {new Date(item.created_at).toLocaleDateString()}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      cell: (item) => (
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={() => approveUser.mutate(item.user_id)}
+            disabled={approveUser.isPending}
+          >
+            <CheckCircle className="mr-2 h-4 w-4" />
+            Approve
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => deactivateUser.mutate(item.user_id)}
+          >
+            <UserX className="mr-2 h-4 w-4" />
+            Reject
+          </Button>
+        </div>
+      ),
+      className: 'w-48',
     },
   ];
 
@@ -345,13 +404,46 @@ export default function UsersPage() {
           }}
         />
       ) : (
-        <DataTable
-          columns={columns}
-          data={filteredUsers}
-          keyExtractor={(item) => item.id}
-          isLoading={isLoading}
-          emptyMessage="No users found matching your search."
-        />
+        <Tabs defaultValue="approved" className="w-full">
+          <TabsList className="mb-4">
+            <TabsTrigger value="approved" className="gap-2">
+              <CheckCircle className="h-4 w-4" />
+              Approved ({approvedActiveUsers.length})
+            </TabsTrigger>
+            <TabsTrigger value="pending" className="gap-2">
+              <Clock className="h-4 w-4" />
+              Pending Approval ({pendingUsers.length})
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="approved">
+            <DataTable
+              columns={columns}
+              data={filteredApprovedUsers}
+              keyExtractor={(item) => item.id}
+              isLoading={isLoading}
+              emptyMessage="No approved users found."
+            />
+          </TabsContent>
+
+          <TabsContent value="pending">
+            {pendingUsers.length === 0 ? (
+              <EmptyState
+                icon={Clock}
+                title="No pending approvals"
+                description="All users have been reviewed."
+              />
+            ) : (
+              <DataTable
+                columns={pendingColumns}
+                data={filteredPendingUsers}
+                keyExtractor={(item) => item.id}
+                isLoading={isLoading}
+                emptyMessage="No pending users found matching your search."
+              />
+            )}
+          </TabsContent>
+        </Tabs>
       )}
     </div>
   );

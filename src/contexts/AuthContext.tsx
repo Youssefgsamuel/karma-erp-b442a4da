@@ -9,6 +9,7 @@ interface AuthContextType {
   profile: Profile | null;
   roles: AppRole[];
   loading: boolean;
+  isApproved: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -118,6 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const hasRole = (role: AppRole) => roles.includes(role) || roles.includes('admin');
   const isAdmin = roles.includes('admin');
+  const isApproved = profile?.is_approved ?? false;
 
   return (
     <AuthContext.Provider
@@ -127,6 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         profile,
         roles,
         loading,
+        isApproved,
         signIn,
         signUp,
         signOut,
