@@ -9,13 +9,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Plus, MoreHorizontal, FileCheck, Trash2, Send, X, Check, ArrowRightLeft, Mail, MessageCircle, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Plus, MoreHorizontal, FileCheck, Trash2, Send, X, Check, ArrowRightLeft, Mail, MessageCircle } from 'lucide-react';
 import { useQuotations, useCreateQuotation, useUpdateQuotationStatus, useDeleteQuotation, useConvertToSalesOrder, Quotation, CreateQuotationInput } from '@/hooks/useQuotations';
 import { useProducts } from '@/hooks/useProducts';
-import { useBomAvailability } from '@/hooks/useBomAvailability';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
+import { formatNumber, formatCurrency } from '@/lib/utils';
 
 const statusColors: Record<Quotation['status'], string> = {
   draft: 'bg-muted text-muted-foreground',
@@ -105,7 +103,7 @@ export default function Quotations() {
   };
 
   const generateQuotationMessage = (q: Quotation) => {
-    return `Quotation ${q.quotation_number}\n\nDear ${q.customer_name},\n\nPlease find your quotation details:\n\nTotal: $${Number(q.total).toFixed(2)}\nValid Until: ${new Date(q.valid_until).toLocaleDateString()}\n\nThank you for your business!`;
+    return `Quotation ${q.quotation_number}\n\nDear ${q.customer_name},\n\nPlease find your quotation details:\n\nTotal: ${formatCurrency(q.total)}\nValid Until: ${new Date(q.valid_until).toLocaleDateString()}\n\nThank you for your business!`;
   };
 
   const handleSendWhatsApp = (q: Quotation) => {
@@ -129,48 +127,6 @@ export default function Quotations() {
   const taxAmount = (subtotal - discountAmount) * (formData.tax_percent || 0) / 100;
   const total = subtotal - discountAmount + taxAmount;
 
-  // Check BOM availability for all items with products
-  const productItemsForBomCheck = formData.items.filter(item => item.product_id);
-  
-  // Use a combined BOM check query
-  const { data: bomAvailabilities = [] } = useQuery({
-    queryKey: ['quotation-bom-check', productItemsForBomCheck.map(i => `${i.product_id}-${i.quantity}`)],
-    queryFn: async () => {
-      const results = await Promise.all(
-        productItemsForBomCheck.map(async (item) => {
-          // Get BOM items for this product
-          const { data: bomItems } = await supabase
-            .from('bom_items')
-            .select(`*, raw_material:raw_materials(id, name, current_stock, unit)`)
-            .eq('product_id', item.product_id!);
-          
-          if (!bomItems || bomItems.length === 0) {
-            return { product_id: item.product_id, has_bom: false, shortages: [] };
-          }
-          
-          const shortages = bomItems
-            .map((bom: any) => {
-              const required = Number(bom.quantity) * item.quantity;
-              const available = Number(bom.raw_material?.current_stock || 0);
-              return {
-                name: bom.raw_material?.name,
-                required,
-                available,
-                shortage: Math.max(0, required - available)
-              };
-            })
-            .filter((s: any) => s.shortage > 0);
-          
-          return { product_id: item.product_id, has_bom: true, shortages };
-        })
-      );
-      return results;
-    },
-    enabled: productItemsForBomCheck.length > 0,
-  });
-
-  const hasShortages = bomAvailabilities.some((b: any) => b.shortages?.length > 0);
-
   const columns: Column<Quotation>[] = [
     { key: 'quotation_number', header: 'Number', cell: (q) => <span className="font-medium">{q.quotation_number}</span> },
     { key: 'customer_name', header: 'Customer', cell: (q) => q.customer_name },
@@ -178,7 +134,7 @@ export default function Quotations() {
       <Badge className={statusColors[q.status]}>{q.status}</Badge>
     )},
     { key: 'valid_until', header: 'Valid Until', cell: (q) => format(new Date(q.valid_until), 'MMM d, yyyy') },
-    { key: 'total', header: 'Total', cell: (q) => `$${Number(q.total).toFixed(2)}` },
+    { key: 'total', header: 'Total', cell: (q) => formatCurrency(q.total) },
     { key: 'actions', header: '', cell: (q) => (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -381,42 +337,11 @@ export default function Quotations() {
               />
             </div>
 
-            {/* BOM Availability Check */}
-            {hasShortages && (
-              <div className="rounded-lg p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
-                <div className="flex items-center gap-2 mb-2">
-                  <AlertTriangle className="h-5 w-5 text-yellow-600" />
-                  <span className="font-medium text-yellow-700 dark:text-yellow-400">Material Shortages Detected</span>
-                </div>
-                <div className="text-sm space-y-1">
-                  {bomAvailabilities.filter((b: any) => b.shortages?.length > 0).map((b: any) => (
-                    <div key={b.product_id}>
-                      {b.shortages.map((s: any, idx: number) => (
-                        <div key={idx} className="flex justify-between text-yellow-700 dark:text-yellow-400">
-                          <span>{s.name}</span>
-                          <span>Need {s.shortage} more (have {s.available}/{s.required})</span>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {productItemsForBomCheck.length > 0 && !hasShortages && bomAvailabilities.length > 0 && (
-              <div className="rounded-lg p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-green-600" />
-                  <span className="font-medium text-green-700 dark:text-green-400">All Materials Available</span>
-                </div>
-              </div>
-            )}
-
             <div className="bg-muted p-4 rounded-lg space-y-1 text-sm">
-              <div className="flex justify-between"><span>Subtotal:</span> <span>${subtotal.toFixed(2)}</span></div>
-              <div className="flex justify-between"><span>Discount:</span> <span>-${discountAmount.toFixed(2)}</span></div>
-              <div className="flex justify-between"><span>Tax:</span> <span>${taxAmount.toFixed(2)}</span></div>
-              <div className="flex justify-between font-bold text-base"><span>Total:</span> <span>${total.toFixed(2)}</span></div>
+              <div className="flex justify-between"><span>Subtotal:</span> <span>{formatCurrency(subtotal)}</span></div>
+              <div className="flex justify-between"><span>Discount:</span> <span>-{formatCurrency(discountAmount)}</span></div>
+              <div className="flex justify-between"><span>Tax:</span> <span>{formatCurrency(taxAmount)}</span></div>
+              <div className="flex justify-between font-bold text-base"><span>Total:</span> <span>{formatCurrency(total)}</span></div>
             </div>
 
             <DialogFooter>

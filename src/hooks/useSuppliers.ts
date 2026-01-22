@@ -50,6 +50,7 @@ export function useSuppliersWithStats() {
 
         return {
           ...supplier,
+          payment_terms_notes: supplier.payment_terms_notes || '',
           total_quantity,
           total_spent,
           avg_unit_price,
@@ -64,11 +65,12 @@ export function useSuppliersWithStats() {
 
 interface CreateSupplierInput {
   name: string;
-  contact_person?: string;
+  contact_person: string;
   email?: string;
-  phone?: string;
-  address?: string;
-  payment_terms?: string;
+  phone: string;
+  address: string;
+  payment_terms: string;
+  payment_terms_notes?: string;
 }
 
 export function useCreateSupplier() {

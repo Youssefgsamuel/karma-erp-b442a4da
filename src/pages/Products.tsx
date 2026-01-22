@@ -156,11 +156,13 @@ export default function Products() {
     {
       key: 'type',
       header: 'Type',
-      cell: (item) => (
+      cell: (item) => {
+        const typeLabels: Record<string, string> = { in_house: 'In-House', outsourced: 'Outsourced', semi_finished: 'Semi-Finished', hybrid: 'Hybrid' };
+        return (
         <Badge variant={item.product_type === 'in_house' ? 'default' : 'secondary'}>
-          {item.product_type === 'in_house' ? 'In-House' : 'Outsourced'}
+          {typeLabels[item.product_type] || item.product_type}
         </Badge>
-      ),
+      );},
     },
     {
       key: 'price',
@@ -475,9 +477,11 @@ function ProductDialog({
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                <SelectContent>
                     <SelectItem value="in_house">In-House</SelectItem>
                     <SelectItem value="outsourced">Outsourced</SelectItem>
+                    <SelectItem value="semi_finished">Semi-Finished</SelectItem>
+                    <SelectItem value="hybrid">Hybrid</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

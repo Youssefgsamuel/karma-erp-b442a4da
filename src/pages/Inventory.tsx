@@ -11,9 +11,10 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Warehouse, Package, Boxes, AlertTriangle, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
+import { Warehouse, Package, Boxes, AlertTriangle, MoreHorizontal, Edit, Trash2, Layers } from 'lucide-react';
 import { DataTable, Column } from '@/components/ui/data-table';
 import type { Product, RawMaterial } from '@/types/erp';
+import { formatNumber, formatCurrency } from '@/lib/utils';
 
 export default function Inventory() {
   const { data: products = [], isLoading: productsLoading } = useProducts();
@@ -24,6 +25,10 @@ export default function Inventory() {
   const deleteMaterial = useDeleteRawMaterial();
 
   const isLoading = productsLoading || materialsLoading;
+
+  // Separate products by type
+  const finishedGoods = products.filter(p => p.product_type === 'in_house' || p.product_type === 'outsourced' || p.product_type === 'hybrid');
+  const semiFinishedGoods = products.filter(p => p.product_type === 'semi_finished');
 
   // Edit/delete state
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -93,15 +98,6 @@ export default function Inventory() {
       cell: (item) => <span className="font-medium">{item.name}</span>,
     },
     {
-      key: 'type',
-      header: 'Type',
-      cell: (item) => (
-        <Badge variant={item.product_type === 'in_house' ? 'default' : 'secondary'}>
-          {item.product_type === 'in_house' ? 'In-House' : 'Outsourced'}
-        </Badge>
-      ),
-    },
-    {
       key: 'stock',
       header: 'Stock',
       cell: (item) => {
@@ -109,7 +105,7 @@ export default function Inventory() {
         return (
           <div className="flex items-center gap-2">
             <span className={isLow ? 'font-medium text-destructive' : ''}>
-              {item.current_stock} {item.unit}
+              {formatNumber(item.current_stock)} {item.unit}
             </span>
             {isLow && <AlertTriangle className="h-4 w-4 text-destructive" />}
           </div>
@@ -119,14 +115,14 @@ export default function Inventory() {
     {
       key: 'min',
       header: 'Min Level',
-      cell: (item) => <span className="text-muted-foreground">{item.minimum_stock}</span>,
+      cell: (item) => <span className="text-muted-foreground">{formatNumber(item.minimum_stock)}</span>,
     },
     {
       key: 'value',
       header: 'Value',
       cell: (item) => (
         <span className="font-medium">
-          ${(Number(item.current_stock) * Number(item.selling_price)).toFixed(2)}
+          {formatCurrency(Number(item.current_stock) * Number(item.selling_price))}
         </span>
       ),
     },
@@ -178,7 +174,7 @@ export default function Inventory() {
         return (
           <div className="flex items-center gap-2">
             <span className={isLow ? 'font-medium text-destructive' : ''}>
-              {item.current_stock}
+              {formatNumber(item.current_stock)}
             </span>
             {isLow && <AlertTriangle className="h-4 w-4 text-destructive" />}
           </div>
@@ -188,19 +184,19 @@ export default function Inventory() {
     {
       key: 'min',
       header: 'Min Level',
-      cell: (item) => <span className="text-muted-foreground">{item.minimum_stock}</span>,
+      cell: (item) => <span className="text-muted-foreground">{formatNumber(item.minimum_stock)}</span>,
     },
     {
       key: 'reorder',
       header: 'Reorder Point',
-      cell: (item) => <span className="text-muted-foreground">{item.reorder_point}</span>,
+      cell: (item) => <span className="text-muted-foreground">{formatNumber(item.reorder_point)}</span>,
     },
     {
       key: 'value',
       header: 'Value',
       cell: (item) => (
         <span className="font-medium">
-          ${(Number(item.current_stock) * Number(item.cost_per_unit)).toFixed(2)}
+          {formatCurrency(Number(item.current_stock) * Number(item.cost_per_unit))}
         </span>
       ),
     },
@@ -245,7 +241,7 @@ export default function Inventory() {
             <Warehouse className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">${totalValue.toLocaleString()}</div>
+            <div className="text-3xl font-bold">{formatCurrency(totalValue)}</div>
           </CardContent>
         </Card>
         <Card>
@@ -256,8 +252,8 @@ export default function Inventory() {
             <Package className="h-5 w-5 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">${productValue.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">{products.length} products</p>
+            <div className="text-3xl font-bold">{formatCurrency(productValue)}</div>
+            <p className="text-xs text-muted-foreground">{formatNumber(products.length)} products</p>
           </CardContent>
         </Card>
         <Card>
@@ -268,8 +264,8 @@ export default function Inventory() {
             <Boxes className="h-5 w-5 text-accent" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">${materialValue.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">{materials.length} materials</p>
+            <div className="text-3xl font-bold">{formatCurrency(materialValue)}</div>
+            <p className="text-xs text-muted-foreground">{formatNumber(materials.length)} materials</p>
           </CardContent>
         </Card>
         <Card>
@@ -281,7 +277,7 @@ export default function Inventory() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">
-              {lowStockProducts.length + lowStockMaterials.length}
+              {formatNumber(lowStockProducts.length + lowStockMaterials.length)}
             </div>
             <p className="text-xs text-muted-foreground">
               {lowStockProducts.length} products, {lowStockMaterials.length} materials
@@ -295,7 +291,11 @@ export default function Inventory() {
         <TabsList>
           <TabsTrigger value="products" className="gap-2">
             <Package className="h-4 w-4" />
-            Finished Goods ({products.length})
+            Finished Goods ({finishedGoods.length})
+          </TabsTrigger>
+          <TabsTrigger value="semi-finished" className="gap-2">
+            <Layers className="h-4 w-4" />
+            Semi-Finished ({semiFinishedGoods.length})
           </TabsTrigger>
           <TabsTrigger value="materials" className="gap-2">
             <Boxes className="h-4 w-4" />
@@ -305,10 +305,19 @@ export default function Inventory() {
         <TabsContent value="products" className="mt-4">
           <DataTable
             columns={productColumns}
-            data={products}
+            data={finishedGoods}
             keyExtractor={(item) => item.id}
             isLoading={isLoading}
             emptyMessage="No finished goods in inventory."
+          />
+        </TabsContent>
+        <TabsContent value="semi-finished" className="mt-4">
+          <DataTable
+            columns={productColumns}
+            data={semiFinishedGoods}
+            keyExtractor={(item) => item.id}
+            isLoading={isLoading}
+            emptyMessage="No semi-finished goods in inventory."
           />
         </TabsContent>
         <TabsContent value="materials" className="mt-4">
