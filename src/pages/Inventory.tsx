@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Warehouse, Package, Boxes, AlertTriangle, MoreHorizontal, Edit, Trash2, Layers } from 'lucide-react';
+import { Warehouse, Package, Boxes, AlertTriangle, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
 import { DataTable, Column } from '@/components/ui/data-table';
 import type { Product, RawMaterial } from '@/types/erp';
 import { formatNumber, formatCurrency } from '@/lib/utils';
@@ -26,9 +26,8 @@ export default function Inventory() {
 
   const isLoading = productsLoading || materialsLoading;
 
-  // Separate products by type
-  const finishedGoods = products.filter(p => p.product_type === 'in_house' || p.product_type === 'outsourced' || p.product_type === 'hybrid');
-  const semiFinishedGoods = products.filter(p => p.product_type === 'semi_finished');
+  // All products are shown in finished goods tab
+  const finishedGoods = products;
 
   // Edit/delete state
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -293,10 +292,6 @@ export default function Inventory() {
             <Package className="h-4 w-4" />
             Finished Goods ({finishedGoods.length})
           </TabsTrigger>
-          <TabsTrigger value="semi-finished" className="gap-2">
-            <Layers className="h-4 w-4" />
-            Semi-Finished ({semiFinishedGoods.length})
-          </TabsTrigger>
           <TabsTrigger value="materials" className="gap-2">
             <Boxes className="h-4 w-4" />
             Raw Materials ({materials.length})
@@ -309,15 +304,6 @@ export default function Inventory() {
             keyExtractor={(item) => item.id}
             isLoading={isLoading}
             emptyMessage="No finished goods in inventory."
-          />
-        </TabsContent>
-        <TabsContent value="semi-finished" className="mt-4">
-          <DataTable
-            columns={productColumns}
-            data={semiFinishedGoods}
-            keyExtractor={(item) => item.id}
-            isLoading={isLoading}
-            emptyMessage="No semi-finished goods in inventory."
           />
         </TabsContent>
         <TabsContent value="materials" className="mt-4">

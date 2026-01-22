@@ -445,6 +445,70 @@ export type Database = {
         }
         Relationships: []
       }
+      quality_control_records: {
+        Row: {
+          created_at: string
+          id: string
+          inspected_at: string | null
+          inspector_id: string | null
+          mo_id: string
+          notes: string | null
+          product_id: string
+          quantity: number
+          rejection_reason: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          inspected_at?: string | null
+          inspector_id?: string | null
+          mo_id: string
+          notes?: string | null
+          product_id: string
+          quantity: number
+          rejection_reason?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          inspected_at?: string | null
+          inspector_id?: string | null
+          mo_id?: string
+          notes?: string | null
+          product_id?: string
+          quantity?: number
+          rejection_reason?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quality_control_records_inspector_id_fkey"
+            columns: ["inspector_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quality_control_records_mo_id_fkey"
+            columns: ["mo_id"]
+            isOneToOne: false
+            referencedRelation: "manufacturing_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quality_control_records_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quotation_items: {
         Row: {
           created_at: string

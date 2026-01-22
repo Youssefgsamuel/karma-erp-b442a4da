@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from '@/hooks/useProducts';
 import { useCategories, useCreateCategory } from '@/hooks/useCategories';
+import { useCreateProductMaterials, useUpdateProductMaterials, useProductMaterials } from '@/hooks/useProductMaterials';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -16,7 +17,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Select,
@@ -32,6 +32,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Package, Plus, MoreHorizontal, Pencil, Trash2, Search, PlusCircle } from 'lucide-react';
+import { HybridMaterialsForm, MaterialLine } from '@/components/products/HybridMaterialsForm';
 import type { Product, ProductType, UnitOfMeasure, Category } from '@/types/erp';
 
 const unitOptions: UnitOfMeasure[] = ['pcs', 'kg', 'g', 'l', 'ml', 'm', 'cm', 'mm', 'box', 'pack'];
@@ -57,6 +58,8 @@ export default function Products() {
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
   const createCategory = useCreateCategory();
+  const createMaterials = useCreateProductMaterials();
+  const updateMaterials = useUpdateProductMaterials();
 
   const [isOpen, setIsOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<(Product & { category: Category | null }) | null>(null);
@@ -64,6 +67,10 @@ export default function Products() {
   const [formData, setFormData] = useState(initialFormData);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [hybridMaterials, setHybridMaterials] = useState<MaterialLine[]>([]);
+
+  // Fetch materials when editing a hybrid product
+  const { data: existingMaterials = [] } = useProductMaterials(editingProduct?.id || '');
 
   const filteredProducts = products.filter(
     (p) =>
@@ -76,6 +83,7 @@ export default function Products() {
     setEditingProduct(null);
     setNewCategoryName('');
     setIsAddingCategory(false);
+    setHybridMaterials([]);
   };
 
   const handleOpenChange = (open: boolean) => {
@@ -103,6 +111,23 @@ export default function Products() {
     setIsOpen(true);
   };
 
+  // Load existing materials when editing
+  const handleEditWithMaterials = (product: Product & { category: Category | null }) => {
+    handleEdit(product);
+    // Materials will be loaded via the useProductMaterials hook when the dialog opens
+  };
+
+  // Effect to load materials when editing
+  useState(() => {
+    if (editingProduct?.product_type === 'hybrid' && existingMaterials.length > 0) {
+      setHybridMaterials(existingMaterials.map(m => ({
+        raw_material_id: m.raw_material_id,
+        quantity: m.quantity,
+        source_type: m.source_type,
+      })));
+    }
+  });
+
   const handleAddCategory = async () => {
     if (!newCategoryName.trim()) return;
     const result = await createCategory.mutateAsync({ name: newCategoryName.trim() });
@@ -116,24 +141,59 @@ export default function Products() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validate hybrid products have at least one material
+    if (formData.product_type === 'hybrid' && hybridMaterials.length === 0) {
+      return; // Show error or prevent submission
+    }
+
+    // Validate all material lines have a raw_material_id
+    if (formData.product_type === 'hybrid' && hybridMaterials.some(m => !m.raw_material_id)) {
+      return;
+    }
+    
     if (editingProduct) {
       await updateProduct.mutateAsync({
         id: editingProduct.id,
         ...formData,
         category_id: formData.category_id || undefined,
       });
+
+      // Update materials if hybrid
+      if (formData.product_type === 'hybrid') {
+        await updateMaterials.mutateAsync({
+          productId: editingProduct.id,
+          materials: hybridMaterials.map(m => ({
+            product_id: editingProduct.id,
+            raw_material_id: m.raw_material_id,
+            quantity: m.quantity,
+            source_type: m.source_type,
+          })),
+        });
+      }
     } else {
-      await createProduct.mutateAsync({
+      const newProduct = await createProduct.mutateAsync({
         ...formData,
         category_id: formData.category_id || undefined,
       });
+
+      // Save materials if hybrid
+      if (formData.product_type === 'hybrid' && newProduct?.id && hybridMaterials.length > 0) {
+        await createMaterials.mutateAsync(
+          hybridMaterials.map(m => ({
+            product_id: newProduct.id,
+            raw_material_id: m.raw_material_id,
+            quantity: m.quantity,
+            source_type: m.source_type,
+          }))
+        );
+      }
     }
     
     setIsOpen(false);
     resetForm();
   };
 
-  const isSubmitting = createProduct.isPending || updateProduct.isPending;
+  const isSubmitting = createProduct.isPending || updateProduct.isPending || createMaterials.isPending || updateMaterials.isPending;
 
   const columns: Column<Product & { category: Category | null }>[] = [
     {
@@ -157,7 +217,7 @@ export default function Products() {
       key: 'type',
       header: 'Type',
       cell: (item) => {
-        const typeLabels: Record<string, string> = { in_house: 'In-House', outsourced: 'Outsourced', semi_finished: 'Semi-Finished', hybrid: 'Hybrid' };
+        const typeLabels: Record<string, string> = { in_house: 'In-House', outsourced: 'Outsourced', hybrid: 'Hybrid' };
         return (
         <Badge variant={item.product_type === 'in_house' ? 'default' : 'secondary'}>
           {typeLabels[item.product_type] || item.product_type}
@@ -228,7 +288,7 @@ export default function Products() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleEdit(item)}>
+            <DropdownMenuItem onClick={() => handleEditWithMaterials(item)}>
               <Pencil className="mr-2 h-4 w-4" />
               Edit
             </DropdownMenuItem>
@@ -274,6 +334,8 @@ export default function Products() {
           setIsAddingCategory={setIsAddingCategory}
           onAddCategory={handleAddCategory}
           isCreatingCategory={createCategory.isPending}
+          hybridMaterials={hybridMaterials}
+          setHybridMaterials={setHybridMaterials}
         />
       </div>
     );
@@ -328,6 +390,8 @@ export default function Products() {
         setIsAddingCategory={setIsAddingCategory}
         onAddCategory={handleAddCategory}
         isCreatingCategory={createCategory.isPending}
+        hybridMaterials={hybridMaterials}
+        setHybridMaterials={setHybridMaterials}
       />
     </div>
   );
@@ -348,6 +412,8 @@ function ProductDialog({
   setIsAddingCategory,
   onAddCategory,
   isCreatingCategory,
+  hybridMaterials,
+  setHybridMaterials,
 }: {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -363,10 +429,15 @@ function ProductDialog({
   setIsAddingCategory: (adding: boolean) => void;
   onAddCategory: () => void;
   isCreatingCategory: boolean;
+  hybridMaterials: MaterialLine[];
+  setHybridMaterials: (materials: MaterialLine[]) => void;
 }) {
+  const isHybrid = formData.product_type === 'hybrid';
+  const isHybridValid = !isHybrid || (hybridMaterials.length > 0 && hybridMaterials.every(m => m.raw_material_id));
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={onSubmit}>
           <DialogHeader>
             <DialogTitle>{isEditing ? 'Edit Product' : 'Add New Product'}</DialogTitle>
@@ -470,22 +541,34 @@ function ProductDialog({
                 <Label htmlFor="dialog-type">Product Type *</Label>
                 <Select
                   value={formData.product_type}
-                  onValueChange={(value: ProductType) =>
-                    setFormData({ ...formData, product_type: value })
-                  }
+                  onValueChange={(value: ProductType) => {
+                    setFormData({ ...formData, product_type: value });
+                    // Reset materials when switching away from hybrid
+                    if (value !== 'hybrid') {
+                      setHybridMaterials([]);
+                    }
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                <SelectContent>
+                  <SelectContent>
                     <SelectItem value="in_house">In-House</SelectItem>
                     <SelectItem value="outsourced">Outsourced</SelectItem>
-                    <SelectItem value="semi_finished">Semi-Finished</SelectItem>
                     <SelectItem value="hybrid">Hybrid</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
+
+            {/* Hybrid Materials Form */}
+            {isHybrid && (
+              <HybridMaterialsForm
+                materials={hybridMaterials}
+                onChange={setHybridMaterials}
+              />
+            )}
+
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="dialog-unit">Unit</Label>
@@ -580,7 +663,7 @@ function ProductDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting || !isHybridValid}>
               {isSubmitting ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update Product' : 'Create Product')}
             </Button>
           </DialogFooter>
