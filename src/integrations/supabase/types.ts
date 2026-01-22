@@ -257,6 +257,87 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          message: string
+          reference_id: string | null
+          reference_type: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message: string
+          reference_id?: string | null
+          reference_type?: string | null
+          title: string
+          type?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string
+          reference_id?: string | null
+          reference_type?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      product_materials: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          product_id: string
+          quantity: number
+          raw_material_id: string
+          source_type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          product_id: string
+          quantity?: number
+          raw_material_id: string
+          source_type?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          product_id?: string
+          quantity?: number
+          raw_material_id?: string
+          source_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_materials_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_materials_raw_material_id_fkey"
+            columns: ["raw_material_id"]
+            isOneToOne: false
+            referencedRelation: "raw_materials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           category_id: string | null
@@ -711,6 +792,7 @@ export type Database = {
           is_active: boolean
           name: string
           payment_terms: string | null
+          payment_terms_notes: string | null
           phone: string | null
           updated_at: string
         }
@@ -723,6 +805,7 @@ export type Database = {
           is_active?: boolean
           name: string
           payment_terms?: string | null
+          payment_terms_notes?: string | null
           phone?: string | null
           updated_at?: string
         }
@@ -735,6 +818,7 @@ export type Database = {
           is_active?: boolean
           name?: string
           payment_terms?: string | null
+          payment_terms_notes?: string | null
           phone?: string | null
           updated_at?: string
         }
@@ -783,7 +867,7 @@ export type Database = {
         | "purchasing"
         | "cfo"
       inventory_transaction_type: "in" | "out" | "adjustment"
-      product_type: "in_house" | "outsourced"
+      product_type: "in_house" | "outsourced" | "semi_finished" | "hybrid"
       unit_of_measure:
         | "pcs"
         | "kg"
@@ -931,7 +1015,7 @@ export const Constants = {
         "cfo",
       ],
       inventory_transaction_type: ["in", "out", "adjustment"],
-      product_type: ["in_house", "outsourced"],
+      product_type: ["in_house", "outsourced", "semi_finished", "hybrid"],
       unit_of_measure: [
         "pcs",
         "kg",

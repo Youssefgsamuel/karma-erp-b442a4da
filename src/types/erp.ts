@@ -2,11 +2,13 @@ export type AppRole = 'admin' | 'hr' | 'manufacture_manager' | 'inventory_manage
 
 export type UnitOfMeasure = 'pcs' | 'kg' | 'g' | 'l' | 'ml' | 'm' | 'cm' | 'mm' | 'box' | 'pack';
 
-export type ProductType = 'in_house' | 'outsourced';
+export type ProductType = 'in_house' | 'outsourced' | 'semi_finished' | 'hybrid';
 
 export type InventoryTransactionType = 'in' | 'out' | 'adjustment';
 
 export type PaymentStatus = 'pending' | 'paid' | 'cancelled';
+
+export type MaterialSourceType = 'in_house' | 'outsourced';
 
 export interface Profile {
   id: string;
@@ -79,6 +81,16 @@ export interface Product {
   category?: Category;
 }
 
+export interface ProductMaterial {
+  id: string;
+  product_id: string;
+  raw_material_id: string;
+  quantity: number;
+  source_type: MaterialSourceType;
+  notes?: string;
+  created_at: string;
+}
+
 export interface BomItem {
   id: string;
   product_id: string;
@@ -111,6 +123,7 @@ export interface Supplier {
   phone?: string;
   address?: string;
   payment_terms?: string;
+  payment_terms_notes?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -158,4 +171,16 @@ export interface StockAlert {
   current_stock: number;
   minimum_stock: number;
   type: 'raw_material' | 'product';
+}
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  title: string;
+  message: string;
+  type: 'info' | 'warning' | 'error' | 'success';
+  is_read: boolean;
+  reference_type?: string;
+  reference_id?: string;
+  created_at: string;
 }
