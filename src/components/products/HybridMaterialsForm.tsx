@@ -73,13 +73,19 @@ export function HybridMaterialsForm({ materials, onChange }: HybridMaterialsForm
             </div>
             <div className="col-span-2">
               <Label className="text-xs">Quantity</Label>
-              <Input
-                type="number"
-                min={0.01}
-                step={0.01}
-                value={line.quantity}
-                onChange={(e) => updateLine(index, { quantity: Number(e.target.value) })}
-              />
+              <div className="flex items-center gap-1">
+                <Input
+                  type="number"
+                  min={0.01}
+                  step={0.01}
+                  value={line.quantity}
+                  onChange={(e) => updateLine(index, { quantity: Number(e.target.value) })}
+                  className="flex-1"
+                />
+                <span className="text-xs text-muted-foreground w-8">
+                  {rawMaterials.find(m => m.id === line.raw_material_id)?.unit || ''}
+                </span>
+              </div>
             </div>
             <div className="col-span-4">
               <Label className="text-xs">Source Type</Label>
