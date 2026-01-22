@@ -13,6 +13,7 @@ import RawMaterials from "./pages/RawMaterials";
 import Inventory from "./pages/Inventory";
 import BOM from "./pages/BOM";
 import Manufacturing from "./pages/Manufacturing";
+import QualityControl from "./pages/QualityControl";
 import Suppliers from "./pages/Suppliers";
 import Quotations from "./pages/Quotations";
 import Sales from "./pages/Sales";
@@ -67,6 +68,7 @@ function AppRoutes() {
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/bom" element={<BOM />} />
         <Route path="/manufacturing" element={<Manufacturing />} />
+        <Route path="/quality-control" element={<QualityControl />} />
         <Route path="/suppliers" element={<Suppliers />} />
         <Route path="/quotations" element={<Quotations />} />
         <Route path="/sales" element={<Sales />} />

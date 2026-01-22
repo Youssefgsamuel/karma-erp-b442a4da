@@ -2,7 +2,7 @@ export type AppRole = 'admin' | 'hr' | 'manufacture_manager' | 'inventory_manage
 
 export type UnitOfMeasure = 'pcs' | 'kg' | 'g' | 'l' | 'ml' | 'm' | 'cm' | 'mm' | 'box' | 'pack';
 
-export type ProductType = 'in_house' | 'outsourced' | 'semi_finished' | 'hybrid';
+export type ProductType = 'in_house' | 'outsourced' | 'hybrid';
 
 export type InventoryTransactionType = 'in' | 'out' | 'adjustment';
 

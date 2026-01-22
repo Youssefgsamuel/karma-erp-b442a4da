@@ -18,6 +18,7 @@ import {
   FileText,
   DollarSign,
   ShoppingCart,
+  ClipboardCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -36,6 +37,7 @@ const navItems: NavItem[] = [
   { title: 'Inventory', href: '/inventory', icon: Warehouse },
   { title: 'BOM', href: '/bom', icon: ClipboardList },
   { title: 'Manufacturing', href: '/manufacturing', icon: Factory, roles: ['admin', 'manufacture_manager'] },
+  { title: 'Quality Control', href: '/quality-control', icon: ClipboardCheck, roles: ['admin', 'manufacture_manager'] },
   { title: 'Suppliers', href: '/suppliers', icon: Truck, roles: ['admin', 'purchasing', 'inventory_manager'] },
   { title: 'Quotations', href: '/quotations', icon: FileText, roles: ['admin', 'purchasing'] },
   { title: 'Sales', href: '/sales', icon: ShoppingCart, roles: ['admin', 'purchasing'] },

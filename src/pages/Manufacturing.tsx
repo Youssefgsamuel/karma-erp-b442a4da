@@ -18,8 +18,11 @@ import { format } from 'date-fns';
 const statusColors: Record<ManufacturingOrder['status'], string> = {
   planned: 'bg-muted text-muted-foreground',
   in_progress: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+  under_qc: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
   completed: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-  cancelled: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  qc_rejected: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  closed: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  cancelled: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
 };
 
 const priorityColors: Record<ManufacturingOrder['priority'], string> = {
@@ -91,7 +94,7 @@ export default function Manufacturing() {
           )}
           {mo.status === 'in_progress' && (
             <DropdownMenuItem onClick={() => updateMO.mutate({ id: mo.id, status: 'completed' })}>
-              <CheckCircle className="mr-2 h-4 w-4" /> Mark Complete
+              <CheckCircle className="mr-2 h-4 w-4" /> Mark Complete (Send to QC)
             </DropdownMenuItem>
           )}
           {(mo.status === 'planned' || mo.status === 'in_progress') && (
@@ -99,9 +102,11 @@ export default function Manufacturing() {
               <XCircle className="mr-2 h-4 w-4" /> Cancel
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem onClick={() => deleteMO.mutate(mo.id)} className="text-destructive">
-            <Trash2 className="mr-2 h-4 w-4" /> Delete
-          </DropdownMenuItem>
+          {(mo.status === 'planned' || mo.status === 'cancelled' || mo.status === 'qc_rejected') && (
+            <DropdownMenuItem onClick={() => deleteMO.mutate(mo.id)} className="text-destructive">
+              <Trash2 className="mr-2 h-4 w-4" /> Delete
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     )},
