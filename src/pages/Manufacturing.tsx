@@ -33,7 +33,12 @@ const priorityColors: Record<ManufacturingOrder['priority'], string> = {
 };
 
 export default function Manufacturing() {
-  const { data: orders = [], isLoading } = useManufacturingOrders();
+  const { data: allOrders = [], isLoading } = useManufacturingOrders();
+  
+  // Filter out orders that have moved to QC workflow (under_qc, closed, qc_rejected)
+  const orders = allOrders.filter(mo => 
+    !['under_qc', 'closed', 'qc_rejected'].includes(mo.status)
+  );
   const { data: products = [] } = useProducts();
   const createMO = useCreateManufacturingOrder();
   const updateMO = useUpdateManufacturingOrder();
