@@ -87,6 +87,17 @@ export function useAcceptQualityControl() {
 
   return useMutation({
     mutationFn: async ({ qcId, notes }: { qcId: string; notes?: string }) => {
+      // Get profile id for the current user
+      let profileId: string | null = null;
+      if (user?.id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('user_id', user.id)
+          .single();
+        profileId = profile?.id || null;
+      }
+
       // Get QC record
       const { data: qcRecord, error: qcError } = await supabase
         .from('quality_control_records')
@@ -101,7 +112,7 @@ export function useAcceptQualityControl() {
         .from('quality_control_records')
         .update({
           status: 'accepted',
-          inspector_id: user?.id,
+          inspector_id: profileId,
           inspected_at: new Date().toISOString(),
           notes,
         })
@@ -166,6 +177,17 @@ export function useRejectQualityControl() {
 
   return useMutation({
     mutationFn: async ({ qcId, rejectionReason }: { qcId: string; rejectionReason: string }) => {
+      // Get profile id for the current user
+      let profileId: string | null = null;
+      if (user?.id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('user_id', user.id)
+          .single();
+        profileId = profile?.id || null;
+      }
+
       // Get QC record
       const { data: qcRecord, error: qcError } = await supabase
         .from('quality_control_records')
@@ -180,7 +202,7 @@ export function useRejectQualityControl() {
         .from('quality_control_records')
         .update({
           status: 'rejected',
-          inspector_id: user?.id,
+          inspector_id: profileId,
           inspected_at: new Date().toISOString(),
           rejection_reason: rejectionReason,
         })
