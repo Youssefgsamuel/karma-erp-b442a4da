@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { useRawMaterials, useCreateRawMaterial, useUpdateRawMaterial, useDeleteRawMaterial } from '@/hooks/useRawMaterials';
+import { useRawMaterials, useCreateRawMaterial, useUpdateRawMaterial, useDeleteRawMaterial, useBulkCreateRawMaterials } from '@/hooks/useRawMaterials';
 import { useSuppliers } from '@/hooks/useSuppliers';
+import { useRawMaterialTransactions } from '@/hooks/useRawMaterialTransactions';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -30,8 +31,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Boxes, Plus, MoreHorizontal, Pencil, Trash2, Search, AlertTriangle } from 'lucide-react';
+import { ExcelUpload, ColumnMapping } from '@/components/upload/ExcelUpload';
+import { Boxes, Plus, MoreHorizontal, Pencil, Trash2, Search, AlertTriangle, Upload, History } from 'lucide-react';
 import type { RawMaterial, UnitOfMeasure, Supplier } from '@/types/erp';
+import { format } from 'date-fns';
 
 const unitOptions: UnitOfMeasure[] = ['pcs', 'kg', 'g', 'l', 'ml', 'm', 'cm', 'mm', 'box', 'pack'];
 
@@ -41,10 +44,11 @@ const initialFormData = {
   description: '',
   unit: 'pcs' as UnitOfMeasure,
   cost_per_unit: 0,
-  minimum_stock: 0,
+  purchasing_quantity: 0,
   current_stock: 0,
   reorder_point: 0,
   supplier_id: '',
+  is_for_sale: false,
 };
 
 export default function RawMaterials() {
@@ -89,10 +93,11 @@ export default function RawMaterials() {
       description: material.description || '',
       unit: material.unit,
       cost_per_unit: Number(material.cost_per_unit),
-      minimum_stock: Number(material.minimum_stock),
+      purchasing_quantity: Number(material.purchasing_quantity),
       current_stock: Number(material.current_stock),
       reorder_point: Number(material.reorder_point),
       supplier_id: material.supplier_id || '',
+      is_for_sale: material.is_for_sale || false,
     });
     setIsAddingNew(true);
     setIsOpen(true);
@@ -108,10 +113,11 @@ export default function RawMaterials() {
         description: material.description || '',
         unit: material.unit,
         cost_per_unit: Number(material.cost_per_unit),
-        minimum_stock: Number(material.minimum_stock),
+        purchasing_quantity: Number(material.purchasing_quantity),
         current_stock: 0, // User will enter quantity to add
         reorder_point: Number(material.reorder_point),
         supplier_id: material.supplier_id || '',
+        is_for_sale: material.is_for_sale || false,
       });
       setEditingMaterial(material);
     }
@@ -181,7 +187,7 @@ export default function RawMaterials() {
       key: 'stock',
       header: 'Current Stock',
       cell: (item) => {
-        const isLow = item.current_stock <= item.minimum_stock;
+        const isLow = item.current_stock <= item.reorder_point;
         const isReorder = item.current_stock <= item.reorder_point;
         return (
           <div className="flex items-center gap-2">
@@ -204,9 +210,9 @@ export default function RawMaterials() {
       },
     },
     {
-      key: 'minStock',
-      header: 'Min Stock',
-      cell: (item) => <span className="text-muted-foreground">{item.minimum_stock}</span>,
+      key: 'purchasingQty',
+      header: 'Purchasing Qty',
+      cell: (item) => <span className="text-muted-foreground">{item.purchasing_quantity}</span>,
     },
     {
       key: 'value',
@@ -512,14 +518,14 @@ function MaterialDialog({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="minStock">Minimum Stock</Label>
+                    <Label htmlFor="purchasingQty">Purchasing Quantity</Label>
                     <Input
-                      id="minStock"
+                      id="purchasingQty"
                       type="number"
                       min="0"
-                      value={formData.minimum_stock}
+                      value={formData.purchasing_quantity}
                       onChange={(e) =>
-                        setFormData({ ...formData, minimum_stock: parseFloat(e.target.value) || 0 })
+                        setFormData({ ...formData, purchasing_quantity: parseFloat(e.target.value) || 0 })
                       }
                       disabled={!isAddingNew && !!selectedExistingId}
                     />
@@ -537,6 +543,21 @@ function MaterialDialog({
                       disabled={!isAddingNew && !!selectedExistingId}
                     />
                   </div>
+                </div>
+
+                {/* For Sale Checkbox */}
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="is_for_sale"
+                    checked={formData.is_for_sale}
+                    onChange={(e) => setFormData({ ...formData, is_for_sale: e.target.checked })}
+                    className="h-4 w-4 rounded border-gray-300"
+                    disabled={!isAddingNew && !!selectedExistingId}
+                  />
+                  <Label htmlFor="is_for_sale" className="text-sm font-normal">
+                    Available for sale in quotations
+                  </Label>
                 </div>
 
                 {/* Supplier Selection */}

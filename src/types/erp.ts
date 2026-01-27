@@ -53,13 +53,22 @@ export interface RawMaterial {
   description?: string;
   unit: UnitOfMeasure;
   cost_per_unit: number;
-  minimum_stock: number;
+  purchasing_quantity: number;
   current_stock: number;
   reorder_point: number;
   supplier_id?: string;
   supplier?: Supplier;
+  category_id?: string;
+  is_for_sale: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface RawMaterialCategory {
+  id: string;
+  name: string;
+  description?: string;
+  created_at: string;
 }
 
 export interface Product {
@@ -76,9 +85,22 @@ export interface Product {
   minimum_stock: number;
   current_stock: number;
   is_active: boolean;
+  assigned_to?: string;
   created_at: string;
   updated_at: string;
   category?: Category;
+}
+
+export interface MoItem {
+  id: string;
+  mo_id: string;
+  product_id: string;
+  quantity: number;
+  status: 'pending' | 'in_progress' | 'completed';
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+  product?: Product;
 }
 
 export interface ProductMaterial {

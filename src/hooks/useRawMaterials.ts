@@ -47,10 +47,12 @@ interface CreateRawMaterialInput {
   description?: string;
   unit: UnitOfMeasure;
   cost_per_unit: number;
-  minimum_stock: number;
+  purchasing_quantity: number;
   current_stock: number;
   reorder_point: number;
   supplier_id?: string;
+  category_id?: string;
+  is_for_sale?: boolean;
 }
 
 export function useCreateRawMaterial() {
@@ -158,10 +160,41 @@ export function useLowStockMaterials() {
       const { data, error } = await supabase
         .from('raw_materials')
         .select('*')
-        .filter('current_stock', 'lte', 'minimum_stock');
+        .filter('current_stock', 'lte', 'reorder_point');
       
       if (error) throw error;
-      return data as RawMaterial[];
+      return data;
+    },
+  });
+}
+
+export function useBulkCreateRawMaterials() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (items: Omit<CreateRawMaterialInput, 'supplier_id'>[]) => {
+      const { data, error } = await supabase
+        .from('raw_materials')
+        .insert(items)
+        .select();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['raw-materials'] });
+      toast({
+        title: 'Bulk Import Successful',
+        description: `${data.length} raw materials imported.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: 'destructive',
+        title: 'Bulk Import Failed',
+        description: error.message,
+      });
     },
   });
 }
