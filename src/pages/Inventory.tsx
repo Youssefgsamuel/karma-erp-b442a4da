@@ -33,8 +33,8 @@ export default function Inventory() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editingMaterial, setEditingMaterial] = useState<RawMaterial | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'product' | 'material'; item: Product | RawMaterial } | null>(null);
-  const [productFormData, setProductFormData] = useState({ current_stock: 0, minimum_stock: 0 });
-  const [materialFormData, setMaterialFormData] = useState({ current_stock: 0, minimum_stock: 0, reorder_point: 0 });
+  const [productFormData, setProductFormData] = useState({ current_stock: 0, minimum_stock: 0, assigned_to: '' });
+  const [materialFormData, setMaterialFormData] = useState({ current_stock: 0, purchasing_quantity: 0, reorder_point: 0 });
 
   const productValue = products.reduce(
     (sum, p) => sum + Number(p.current_stock) * Number(p.selling_price),
@@ -47,18 +47,18 @@ export default function Inventory() {
   const totalValue = productValue + materialValue;
 
   const lowStockProducts = products.filter((p) => p.current_stock <= p.minimum_stock);
-  const lowStockMaterials = materials.filter((m) => m.current_stock <= m.minimum_stock);
+  const lowStockMaterials = materials.filter((m) => m.current_stock <= m.reorder_point);
 
   const handleEditProduct = (product: Product) => {
     setEditingProduct(product);
-    setProductFormData({ current_stock: product.current_stock, minimum_stock: product.minimum_stock });
+    setProductFormData({ current_stock: product.current_stock, minimum_stock: product.minimum_stock, assigned_to: product.assigned_to || '' });
   };
 
   const handleEditMaterial = (material: RawMaterial) => {
     setEditingMaterial(material);
     setMaterialFormData({ 
       current_stock: material.current_stock, 
-      minimum_stock: material.minimum_stock,
+      purchasing_quantity: material.purchasing_quantity,
       reorder_point: material.reorder_point 
     });
   };
@@ -117,6 +117,17 @@ export default function Inventory() {
       cell: (item) => <span className="text-muted-foreground">{formatNumber(item.minimum_stock)}</span>,
     },
     {
+      key: 'assigned_to',
+      header: 'Assigned To',
+      cell: (item) => (
+        item.assigned_to ? (
+          <Badge variant="secondary">{item.assigned_to}</Badge>
+        ) : (
+          <span className="text-muted-foreground">-</span>
+        )
+      ),
+    },
+    {
       key: 'value',
       header: 'Value',
       cell: (item) => (
@@ -169,7 +180,7 @@ export default function Inventory() {
       key: 'stock',
       header: 'Stock',
       cell: (item) => {
-        const isLow = item.current_stock <= item.minimum_stock;
+        const isLow = item.current_stock <= item.reorder_point;
         return (
           <div className="flex items-center gap-2">
             <span className={isLow ? 'font-medium text-destructive' : ''}>
@@ -181,9 +192,9 @@ export default function Inventory() {
       },
     },
     {
-      key: 'min',
-      header: 'Min Level',
-      cell: (item) => <span className="text-muted-foreground">{formatNumber(item.minimum_stock)}</span>,
+      key: 'purchasing_qty',
+      header: 'Purchasing Qty',
+      cell: (item) => <span className="text-muted-foreground">{formatNumber(item.purchasing_quantity)}</span>,
     },
     {
       key: 'reorder',
@@ -343,6 +354,15 @@ export default function Inventory() {
                 onChange={(e) => setProductFormData(prev => ({ ...prev, minimum_stock: Number(e.target.value) }))}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="product_assigned">Assigned To (Reserved)</Label>
+              <Input
+                id="product_assigned"
+                placeholder="Person name (leave empty if not reserved)"
+                value={productFormData.assigned_to}
+                onChange={(e) => setProductFormData(prev => ({ ...prev, assigned_to: e.target.value }))}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingProduct(null)}>Cancel</Button>
@@ -371,12 +391,12 @@ export default function Inventory() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="material_min">Minimum Stock</Label>
+              <Label htmlFor="material_purchasing_qty">Purchasing Quantity</Label>
               <Input
-                id="material_min"
+                id="material_purchasing_qty"
                 type="number"
-                value={materialFormData.minimum_stock}
-                onChange={(e) => setMaterialFormData(prev => ({ ...prev, minimum_stock: Number(e.target.value) }))}
+                value={materialFormData.purchasing_quantity}
+                onChange={(e) => setMaterialFormData(prev => ({ ...prev, purchasing_quantity: Number(e.target.value) }))}
               />
             </div>
             <div className="space-y-2">

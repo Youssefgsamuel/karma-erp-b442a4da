@@ -257,6 +257,54 @@ export type Database = {
           },
         ]
       }
+      mo_items: {
+        Row: {
+          created_at: string
+          id: string
+          mo_id: string
+          notes: string | null
+          product_id: string
+          quantity: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mo_id: string
+          notes?: string | null
+          product_id: string
+          quantity?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mo_id?: string
+          notes?: string | null
+          product_id?: string
+          quantity?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mo_items_mo_id_fkey"
+            columns: ["mo_id"]
+            isOneToOne: false
+            referencedRelation: "manufacturing_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mo_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string
@@ -340,6 +388,7 @@ export type Database = {
       }
       products: {
         Row: {
+          assigned_to: string | null
           category_id: string | null
           cost_price: number
           created_at: string
@@ -357,6 +406,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          assigned_to?: string | null
           category_id?: string | null
           cost_price?: number
           created_at?: string
@@ -374,6 +424,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          assigned_to?: string | null
           category_id?: string | null
           cost_price?: number
           created_at?: string
@@ -625,15 +676,38 @@ export type Database = {
           },
         ]
       }
+      raw_material_categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       raw_materials: {
         Row: {
+          category_id: string | null
           cost_per_unit: number
           created_at: string
           current_stock: number
           description: string | null
           id: string
-          minimum_stock: number
+          is_for_sale: boolean
           name: string
+          purchasing_quantity: number
           reorder_point: number
           sku: string
           supplier_id: string | null
@@ -641,13 +715,15 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          category_id?: string | null
           cost_per_unit?: number
           created_at?: string
           current_stock?: number
           description?: string | null
           id?: string
-          minimum_stock?: number
+          is_for_sale?: boolean
           name: string
+          purchasing_quantity?: number
           reorder_point?: number
           sku: string
           supplier_id?: string | null
@@ -655,13 +731,15 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          category_id?: string | null
           cost_per_unit?: number
           created_at?: string
           current_stock?: number
           description?: string | null
           id?: string
-          minimum_stock?: number
+          is_for_sale?: boolean
           name?: string
+          purchasing_quantity?: number
           reorder_point?: number
           sku?: string
           supplier_id?: string | null
@@ -669,6 +747,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "raw_materials_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "raw_material_categories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "raw_materials_supplier_id_fkey"
             columns: ["supplier_id"]

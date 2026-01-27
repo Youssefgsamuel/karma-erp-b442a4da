@@ -23,18 +23,18 @@ export default function Dashboard() {
 
   const activeProducts = products.filter(p => p.is_active).length;
   const lowStockProducts = products.filter(p => p.current_stock <= p.minimum_stock).length;
-  const lowStockMaterials = rawMaterials.filter(m => m.current_stock <= m.minimum_stock);
+  const lowStockMaterials = rawMaterials.filter(m => m.current_stock <= m.reorder_point);
   const totalInventoryValue = rawMaterials.reduce((sum, m) => sum + (m.current_stock * m.cost_per_unit), 0);
 
   const stockAlerts = [
     ...rawMaterials
-      .filter(m => m.current_stock <= m.minimum_stock)
+      .filter(m => m.current_stock <= m.reorder_point)
       .map(m => ({
         id: m.id,
         name: m.name,
         sku: m.sku,
         current: m.current_stock,
-        minimum: m.minimum_stock,
+        minimum: m.reorder_point,
         type: 'material' as const,
       })),
     ...products
