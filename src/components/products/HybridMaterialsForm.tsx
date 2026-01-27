@@ -51,71 +51,88 @@ export function HybridMaterialsForm({ materials, onChange }: HybridMaterialsForm
       )}
 
       <div className="space-y-3">
-        {materials.map((line, index) => (
-          <div key={index} className="grid grid-cols-12 gap-2 items-end">
-            <div className="col-span-5">
-              <Label className="text-xs">Raw Material</Label>
-              <Select
-                value={line.raw_material_id}
-                onValueChange={(v) => updateLine(index, { raw_material_id: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select material" />
-                </SelectTrigger>
-                <SelectContent>
-                  {rawMaterials.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.name} ({m.sku})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="col-span-2">
-              <Label className="text-xs">Quantity</Label>
-              <div className="flex items-center gap-1">
-                <Input
-                  type="number"
-                  min={0.01}
-                  step={0.01}
-                  value={line.quantity}
-                  onChange={(e) => updateLine(index, { quantity: Number(e.target.value) })}
-                  className="flex-1"
-                />
-                <span className="text-xs text-muted-foreground w-8">
-                  {rawMaterials.find(m => m.id === line.raw_material_id)?.unit || ''}
-                </span>
+        {materials.map((line, index) => {
+          const material = rawMaterials.find(m => m.id === line.raw_material_id);
+          return (
+            <div key={index} className="grid grid-cols-12 gap-2 items-end">
+              <div className="col-span-5">
+                <Label className="text-xs">Raw Material</Label>
+                <Select
+                  value={line.raw_material_id}
+                  onValueChange={(v) => updateLine(index, { raw_material_id: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select material" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {rawMaterials.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.name} ({m.sku})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-2">
+                <Label className="text-xs">Quantity</Label>
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="number"
+                    min={0.01}
+                    step={0.01}
+                    value={line.quantity}
+                    onChange={(e) => updateLine(index, { quantity: Number(e.target.value) })}
+                    className="flex-1"
+                  />
+                  <span className="text-xs text-muted-foreground w-8">
+                    {material?.unit || ''}
+                  </span>
+                </div>
+              </div>
+              <div className="col-span-4">
+                <Label className="text-xs">Source Type</Label>
+                <Select
+                  value={line.source_type}
+                  onValueChange={(v) => updateLine(index, { source_type: v as MaterialSourceType })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="in_house">In-House</SelectItem>
+                    <SelectItem value="outsourced">Outsourced</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => removeLine(index)}
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
             </div>
-            <div className="col-span-4">
-              <Label className="text-xs">Source Type</Label>
-              <Select
-                value={line.source_type}
-                onValueChange={(v) => updateLine(index, { source_type: v as MaterialSourceType })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="in_house">In-House</SelectItem>
-                  <SelectItem value="outsourced">Outsourced</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="col-span-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => removeLine(index)}
-                className="text-destructive hover:text-destructive"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
+
+      {/* Cost of Raw Material Summary */}
+      {materials.length > 0 && (
+        <div className="flex items-center justify-between pt-3 border-t">
+          <span className="text-sm font-medium">Cost of Raw Material:</span>
+          <span className="text-base font-semibold text-primary">
+            ${materials.reduce((total, line) => {
+              const material = rawMaterials.find(m => m.id === line.raw_material_id);
+              const cost = material ? Number(material.cost_per_unit) * line.quantity : 0;
+              return total + cost;
+            }, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
