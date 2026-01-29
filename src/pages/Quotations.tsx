@@ -9,9 +9,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Plus, MoreHorizontal, FileCheck, Trash2, Send, X, Check, ArrowRightLeft, Mail, MessageCircle } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Plus, MoreHorizontal, FileCheck, Trash2, Send, X, Check, ArrowRightLeft, Mail, MessageCircle, Filter } from 'lucide-react';
 import { useQuotations, useCreateQuotation, useUpdateQuotationStatus, useDeleteQuotation, useConvertToSalesOrder, Quotation, CreateQuotationInput } from '@/hooks/useQuotations';
 import { useProducts } from '@/hooks/useProducts';
+import { useRawMaterials } from '@/hooks/useRawMaterials';
+import { useCategories } from '@/hooks/useCategories';
+import { useRawMaterialCategories } from '@/hooks/useRawMaterialCategories';
 import { format } from 'date-fns';
 import { formatNumber, formatCurrency } from '@/lib/utils';
 
@@ -27,6 +31,9 @@ const statusColors: Record<Quotation['status'], string> = {
 export default function Quotations() {
   const { data: quotations = [], isLoading } = useQuotations();
   const { data: products = [] } = useProducts();
+  const { data: rawMaterials = [] } = useRawMaterials();
+  const { data: categories = [] } = useCategories();
+  const { data: rawMaterialCategories = [] } = useRawMaterialCategories();
   const createQuotation = useCreateQuotation();
   const updateStatus = useUpdateQuotationStatus();
   const deleteQuotation = useDeleteQuotation();
@@ -44,6 +51,26 @@ export default function Quotations() {
     notes: '',
     items: [{ description: '', quantity: 1, unit_price: 0 }],
   });
+
+  // Category filters
+  const [selectedProductCategory, setSelectedProductCategory] = useState<string>('all');
+  const [selectedRawMaterialCategory, setSelectedRawMaterialCategory] = useState<string>('all');
+  const [itemType, setItemType] = useState<'product' | 'material'>('product');
+
+  // Filtered products and raw materials
+  const filteredProducts = useMemo(() => {
+    if (selectedProductCategory === 'all') return products;
+    return products.filter(p => p.category_id === selectedProductCategory);
+  }, [products, selectedProductCategory]);
+
+  const saleableRawMaterials = useMemo(() => {
+    return rawMaterials.filter(m => m.is_for_sale);
+  }, [rawMaterials]);
+
+  const filteredRawMaterials = useMemo(() => {
+    if (selectedRawMaterialCategory === 'all') return saleableRawMaterials;
+    return saleableRawMaterials.filter(m => m.category_id === selectedRawMaterialCategory);
+  }, [saleableRawMaterials, selectedRawMaterialCategory]);
 
   const handleAddItem = () => {
     setFormData(prev => ({
@@ -79,6 +106,23 @@ export default function Quotations() {
             product_id: productId,
             description: product.name,
             unit_price: product.selling_price 
+          } : item
+        ),
+      }));
+    }
+  };
+
+  const handleRawMaterialSelect = (index: number, materialId: string) => {
+    const material = saleableRawMaterials.find(m => m.id === materialId);
+    if (material) {
+      setFormData(prev => ({
+        ...prev,
+        items: prev.items.map((item, i) => 
+          i === index ? { 
+            ...item, 
+            product_id: undefined, // Clear product_id for raw material items
+            description: `${material.name} (Raw Material)`,
+            unit_price: material.cost_per_unit 
           } : item
         ),
       }));
@@ -202,7 +246,7 @@ export default function Quotations() {
       />
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create Quotation</DialogTitle>
             <DialogDescription>Create a new quotation for a customer.</DialogDescription>
@@ -261,47 +305,111 @@ export default function Quotations() {
 
             <div className="space-y-2">
               <Label>Items</Label>
-              <div className="space-y-2">
-                {formData.items.map((item, index) => (
-                  <div key={index} className="flex gap-2 items-start">
-                    <Select onValueChange={(v) => handleProductSelect(index, v)}>
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="Select product" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {products.map(p => (
-                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      placeholder="Description"
-                      value={item.description}
-                      onChange={(e) => handleItemChange(index, 'description', e.target.value)}
-                      className="flex-1"
-                    />
-                    <Input
-                      type="number"
-                      placeholder="Qty"
-                      value={item.quantity}
-                      onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value))}
-                      className="w-20"
-                    />
-                    <Input
-                      type="number"
-                      placeholder="Price"
-                      value={item.unit_price}
-                      onChange={(e) => handleItemChange(index, 'unit_price', Number(e.target.value))}
-                      className="w-24"
-                    />
-                    {formData.items.length > 1 && (
-                      <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+              
+              {/* Item Type Tabs */}
+              <Tabs value={itemType} onValueChange={(v) => setItemType(v as 'product' | 'material')} className="w-full">
+                <div className="flex items-center justify-between mb-2">
+                  <TabsList>
+                    <TabsTrigger value="product">Products</TabsTrigger>
+                    <TabsTrigger value="material">Raw Materials</TabsTrigger>
+                  </TabsList>
+                  
+                  {/* Category Filters */}
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-4 w-4 text-muted-foreground" />
+                    {itemType === 'product' && (
+                      <Select value={selectedProductCategory} onValueChange={setSelectedProductCategory}>
+                        <SelectTrigger className="w-[180px] h-8">
+                          <SelectValue placeholder="All Categories" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Categories</SelectItem>
+                          {categories.map(cat => (
+                            <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {itemType === 'material' && (
+                      <Select value={selectedRawMaterialCategory} onValueChange={setSelectedRawMaterialCategory}>
+                        <SelectTrigger className="w-[180px] h-8">
+                          <SelectValue placeholder="All Categories" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Categories</SelectItem>
+                          {rawMaterialCategories.map(cat => (
+                            <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     )}
                   </div>
-                ))}
-              </div>
+                </div>
+
+                <div className="space-y-2">
+                  {formData.items.map((item, index) => (
+                    <div key={index} className="flex gap-2 items-start">
+                      <TabsContent value="product" className="m-0 flex-shrink-0">
+                        <Select onValueChange={(v) => handleProductSelect(index, v)}>
+                          <SelectTrigger className="w-[200px]">
+                            <SelectValue placeholder="Select product" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {filteredProducts.map(p => (
+                              <SelectItem key={p.id} value={p.id}>
+                                {p.name} {p.category?.name ? `(${p.category.name})` : ''}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TabsContent>
+                      <TabsContent value="material" className="m-0 flex-shrink-0">
+                        <Select onValueChange={(v) => handleRawMaterialSelect(index, v)}>
+                          <SelectTrigger className="w-[200px]">
+                            <SelectValue placeholder="Select material" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {filteredRawMaterials.length === 0 ? (
+                              <SelectItem value="_none" disabled>No materials for sale</SelectItem>
+                            ) : (
+                              filteredRawMaterials.map(m => (
+                                <SelectItem key={m.id} value={m.id}>
+                                  {m.name}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </TabsContent>
+                      <Input
+                        placeholder="Description"
+                        value={item.description}
+                        onChange={(e) => handleItemChange(index, 'description', e.target.value)}
+                        className="flex-1"
+                      />
+                      <Input
+                        type="number"
+                        placeholder="Qty"
+                        value={item.quantity}
+                        onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value))}
+                        className="w-20"
+                      />
+                      <Input
+                        type="number"
+                        placeholder="Price"
+                        value={item.unit_price}
+                        onChange={(e) => handleItemChange(index, 'unit_price', Number(e.target.value))}
+                        className="w-24"
+                      />
+                      {formData.items.length > 1 && (
+                        <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </Tabs>
               <Button type="button" variant="outline" size="sm" onClick={handleAddItem}>
                 <Plus className="mr-2 h-4 w-4" /> Add Item
               </Button>

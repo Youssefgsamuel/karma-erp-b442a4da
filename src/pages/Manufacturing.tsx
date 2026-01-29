@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -9,8 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Plus, MoreHorizontal, Play, CheckCircle, XCircle, Trash2, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Plus, MoreHorizontal, Play, CheckCircle, XCircle, Trash2, AlertTriangle, CheckCircle2, Eye, ListChecks } from 'lucide-react';
 import { useManufacturingOrders, useCreateManufacturingOrder, useUpdateManufacturingOrder, useDeleteManufacturingOrder, ManufacturingOrder, CreateMOInput } from '@/hooks/useManufacturingOrders';
+import { useMoItems, useCreateMoItems, useUpdateMoItemStatus, useDeleteMoItem, MoItemWithProduct } from '@/hooks/useMoItems';
 import { useProducts } from '@/hooks/useProducts';
 import { useBomAvailability } from '@/hooks/useBomAvailability';
 import { format } from 'date-fns';
@@ -32,6 +33,18 @@ const priorityColors: Record<ManufacturingOrder['priority'], string> = {
   urgent: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
 };
 
+const itemStatusColors: Record<string, string> = {
+  pending: 'bg-muted text-muted-foreground',
+  in_progress: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+  completed: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+};
+
+interface MoItemLine {
+  product_id: string;
+  quantity: number;
+  notes?: string;
+}
+
 export default function Manufacturing() {
   const { data: allOrders = [], isLoading } = useManufacturingOrders();
   
@@ -43,9 +56,17 @@ export default function Manufacturing() {
   const createMO = useCreateManufacturingOrder();
   const updateMO = useUpdateManufacturingOrder();
   const deleteMO = useDeleteManufacturingOrder();
+  const createMoItems = useCreateMoItems();
+  const updateItemStatus = useUpdateMoItemStatus();
+  const deleteMoItem = useDeleteMoItem();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [formData, setFormData] = useState<CreateMOInput>({
+  const [isItemsDialogOpen, setIsItemsDialogOpen] = useState(false);
+  const [selectedMO, setSelectedMO] = useState<ManufacturingOrder | null>(null);
+  
+  // Multi-item form state
+  const [moItems, setMoItems] = useState<MoItemLine[]>([{ product_id: '', quantity: 1, notes: '' }]);
+  const [formData, setFormData] = useState<Omit<CreateMOInput, 'product_id' | 'quantity'> & { product_id: string; quantity: number }>({
     product_id: '',
     quantity: 1,
     priority: 'normal',
@@ -54,15 +75,60 @@ export default function Manufacturing() {
     notes: '',
   });
 
-  // BOM availability check
+  // Fetch MO items for selected MO
+  const { data: selectedMoItems = [] } = useMoItems(selectedMO?.id || '');
+
+  // BOM availability check for main product
   const { data: bomAvailability, isLoading: isCheckingAvailability } = useBomAvailability(
     formData.product_id,
     formData.quantity
   );
 
+  const handleAddItemLine = () => {
+    setMoItems(prev => [...prev, { product_id: '', quantity: 1, notes: '' }]);
+  };
+
+  const handleRemoveItemLine = (index: number) => {
+    setMoItems(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleItemLineChange = (index: number, field: keyof MoItemLine, value: string | number) => {
+    setMoItems(prev => prev.map((item, i) => 
+      i === index ? { ...item, [field]: value } : item
+    ));
+  };
+
+  const handleViewItems = (mo: ManufacturingOrder) => {
+    setSelectedMO(mo);
+    setIsItemsDialogOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createMO.mutateAsync(formData);
+    
+    // Create the main MO with the first/primary product
+    const moData = await createMO.mutateAsync({
+      product_id: formData.product_id,
+      quantity: formData.quantity,
+      priority: formData.priority,
+      planned_start: formData.planned_start,
+      planned_end: formData.planned_end,
+      notes: formData.notes,
+    });
+
+    // If there are additional items, create them
+    const additionalItems = moItems.filter(item => item.product_id && item.product_id !== formData.product_id);
+    if (additionalItems.length > 0 && moData?.id) {
+      await createMoItems.mutateAsync(
+        additionalItems.map(item => ({
+          mo_id: moData.id,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          notes: item.notes,
+        }))
+      );
+    }
+
     setIsDialogOpen(false);
     setFormData({
       product_id: '',
@@ -72,12 +138,29 @@ export default function Manufacturing() {
       planned_end: '',
       notes: '',
     });
+    setMoItems([{ product_id: '', quantity: 1, notes: '' }]);
+  };
+
+  const handleItemStatusChange = async (item: MoItemWithProduct, newStatus: 'pending' | 'in_progress' | 'completed') => {
+    if (!selectedMO) return;
+    await updateItemStatus.mutateAsync({
+      itemId: item.id,
+      status: newStatus,
+      moId: selectedMO.id,
+    });
   };
 
   const columns: Column<ManufacturingOrder>[] = [
-    { key: 'mo_number', header: 'MO Number', cell: (mo) => <span className="font-medium">{mo.mo_number}</span> },
-    { key: 'product', header: 'Product', cell: (mo) => mo.product?.name || 'Unknown' },
-    { key: 'quantity', header: 'Quantity', cell: (mo) => mo.quantity },
+    { key: 'mo_number', header: 'MO Number', cell: (mo) => (
+      <button
+        className="font-medium hover:underline cursor-pointer text-left"
+        onClick={() => handleViewItems(mo)}
+      >
+        {mo.mo_number}
+      </button>
+    )},
+    { key: 'product', header: 'Primary Product', cell: (mo) => mo.product?.name || 'Unknown' },
+    { key: 'quantity', header: 'Qty', cell: (mo) => mo.quantity },
     { key: 'status', header: 'Status', cell: (mo) => (
       <Badge className={statusColors[mo.status]}>{mo.status.replace('_', ' ')}</Badge>
     )},
@@ -92,6 +175,9 @@ export default function Manufacturing() {
           <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => handleViewItems(mo)}>
+            <ListChecks className="mr-2 h-4 w-4" /> View Items
+          </DropdownMenuItem>
           {mo.status === 'planned' && (
             <DropdownMenuItem onClick={() => updateMO.mutate({ id: mo.id, status: 'in_progress' })}>
               <Play className="mr-2 h-4 w-4" /> Start Production
@@ -137,15 +223,16 @@ export default function Manufacturing() {
         emptyMessage="No manufacturing orders yet. Create your first MO."
       />
 
+      {/* Create MO Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create Manufacturing Order</DialogTitle>
-            <DialogDescription>Create a new manufacturing order to produce products.</DialogDescription>
+            <DialogDescription>Create a new manufacturing order with one or more products.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="product">Product *</Label>
+              <Label>Primary Product *</Label>
               <Select 
                 value={formData.product_id} 
                 onValueChange={(v) => setFormData(prev => ({ ...prev, product_id: v }))}
@@ -163,7 +250,7 @@ export default function Manufacturing() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="quantity">Quantity *</Label>
+                <Label htmlFor="quantity">Primary Quantity *</Label>
                 <Input
                   id="quantity"
                   type="number"
@@ -190,6 +277,48 @@ export default function Manufacturing() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            {/* Additional Items */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Additional Items (Optional)</Label>
+                <Button type="button" variant="outline" size="sm" onClick={handleAddItemLine}>
+                  <Plus className="mr-2 h-4 w-4" /> Add Item
+                </Button>
+              </div>
+              {moItems.length > 0 && (
+                <div className="space-y-2 border rounded-lg p-3">
+                  {moItems.map((item, index) => (
+                    <div key={index} className="flex gap-2 items-start">
+                      <Select 
+                        value={item.product_id} 
+                        onValueChange={(v) => handleItemLineChange(index, 'product_id', v)}
+                      >
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Select product" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {products.filter(p => p.id !== formData.product_id).map(p => (
+                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type="number"
+                        min={1}
+                        placeholder="Qty"
+                        value={item.quantity}
+                        onChange={(e) => handleItemLineChange(index, 'quantity', Number(e.target.value))}
+                        className="w-20"
+                      />
+                      <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveItemLine(index)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -269,6 +398,95 @@ export default function Manufacturing() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* MO Items Dialog */}
+      <Dialog open={isItemsDialogOpen} onOpenChange={setIsItemsDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>MO Items - {selectedMO?.mo_number}</DialogTitle>
+            <DialogDescription>
+              View and manage items in this manufacturing order.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedMO && (
+            <div className="space-y-4">
+              {/* Primary Product */}
+              <div className="rounded-lg border p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Primary Product</p>
+                    <p className="font-medium">{selectedMO.product?.name}</p>
+                    <p className="text-sm">Quantity: {selectedMO.quantity}</p>
+                  </div>
+                  <Badge className={statusColors[selectedMO.status]}>
+                    {selectedMO.status.replace('_', ' ')}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Additional Items */}
+              {selectedMoItems.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Additional Items ({selectedMoItems.length})</Label>
+                  <div className="space-y-2">
+                    {selectedMoItems.map((item) => (
+                      <div key={item.id} className="rounded-lg border p-3 flex items-center justify-between">
+                        <div className="flex-1">
+                          <p className="font-medium">{item.product?.name || 'Unknown Product'}</p>
+                          <p className="text-sm text-muted-foreground">Quantity: {item.quantity}</p>
+                          {item.notes && <p className="text-xs text-muted-foreground">{item.notes}</p>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge className={itemStatusColors[item.status]}>
+                            {item.status}
+                          </Badge>
+                          {selectedMO.status === 'in_progress' && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                {item.status !== 'in_progress' && (
+                                  <DropdownMenuItem onClick={() => handleItemStatusChange(item, 'in_progress')}>
+                                    <Play className="mr-2 h-4 w-4" /> Start
+                                  </DropdownMenuItem>
+                                )}
+                                {item.status !== 'completed' && (
+                                  <DropdownMenuItem onClick={() => handleItemStatusChange(item, 'completed')}>
+                                    <CheckCircle className="mr-2 h-4 w-4" /> Mark Complete
+                                  </DropdownMenuItem>
+                                )}
+                                {item.status !== 'pending' && (
+                                  <DropdownMenuItem onClick={() => handleItemStatusChange(item, 'pending')}>
+                                    Reset to Pending
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedMoItems.length === 0 && (
+                <div className="text-center py-4 text-muted-foreground">
+                  No additional items in this MO.
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsItemsDialogOpen(false)}>Close</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

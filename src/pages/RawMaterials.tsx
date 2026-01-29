@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useRawMaterials, useCreateRawMaterial, useUpdateRawMaterial, useDeleteRawMaterial, useBulkCreateRawMaterials } from '@/hooks/useRawMaterials';
 import { useSuppliers } from '@/hooks/useSuppliers';
-import { useRawMaterialTransactions } from '@/hooks/useRawMaterialTransactions';
+import { useRawMaterialCategories, useCreateRawMaterialCategory } from '@/hooks/useRawMaterialCategories';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -32,9 +33,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ExcelUpload, ColumnMapping } from '@/components/upload/ExcelUpload';
-import { Boxes, Plus, MoreHorizontal, Pencil, Trash2, Search, AlertTriangle, Upload, History } from 'lucide-react';
-import type { RawMaterial, UnitOfMeasure, Supplier } from '@/types/erp';
-import { format } from 'date-fns';
+import { TransactionHistoryDialog } from '@/components/raw-materials/TransactionHistoryDialog';
+import { Boxes, Plus, MoreHorizontal, Pencil, Trash2, Search, AlertTriangle, Upload, History, PlusCircle } from 'lucide-react';
+import type { RawMaterial, UnitOfMeasure, Supplier, RawMaterialCategory } from '@/types/erp';
 
 const unitOptions: UnitOfMeasure[] = ['pcs', 'kg', 'g', 'l', 'ml', 'm', 'cm', 'mm', 'box', 'pack'];
 
@@ -48,22 +49,45 @@ const initialFormData = {
   current_stock: 0,
   reorder_point: 0,
   supplier_id: '',
+  category_id: '',
   is_for_sale: false,
 };
+
+const excelColumns: ColumnMapping[] = [
+  { key: 'sku', label: 'SKU', required: true, type: 'string' },
+  { key: 'name', label: 'Name', required: true, type: 'string' },
+  { key: 'description', label: 'Description', required: false, type: 'string' },
+  { key: 'unit', label: 'Unit', required: true, type: 'string' },
+  { key: 'cost_per_unit', label: 'Cost Per Unit', required: true, type: 'number' },
+  { key: 'purchasing_quantity', label: 'Purchasing Quantity', required: false, type: 'number' },
+  { key: 'current_stock', label: 'Current Stock', required: false, type: 'number' },
+  { key: 'reorder_point', label: 'Reorder Point', required: false, type: 'number' },
+  { key: 'is_for_sale', label: 'For Sale', required: false, type: 'boolean' },
+];
 
 export default function RawMaterials() {
   const { data: materials = [], isLoading } = useRawMaterials();
   const { data: suppliers = [] } = useSuppliers();
+  const { data: categories = [] } = useRawMaterialCategories();
   const createMaterial = useCreateRawMaterial();
   const updateMaterial = useUpdateRawMaterial();
   const deleteMaterial = useDeleteRawMaterial();
+  const bulkCreate = useBulkCreateRawMaterials();
+  const createCategory = useCreateRawMaterialCategory();
 
   const [isOpen, setIsOpen] = useState(false);
+  const [isExcelOpen, setIsExcelOpen] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<RawMaterial | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState(initialFormData);
   const [selectedExistingId, setSelectedExistingId] = useState<string>('');
   const [isAddingNew, setIsAddingNew] = useState(true);
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  
+  // Transaction history
+  const [historyMaterial, setHistoryMaterial] = useState<RawMaterial | null>(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const filteredMaterials = materials.filter(
     (m) =>
@@ -76,6 +100,8 @@ export default function RawMaterials() {
     setEditingMaterial(null);
     setSelectedExistingId('');
     setIsAddingNew(true);
+    setIsAddingCategory(false);
+    setNewCategoryName('');
   };
 
   const handleOpenChange = (open: boolean) => {
@@ -97,6 +123,7 @@ export default function RawMaterials() {
       current_stock: Number(material.current_stock),
       reorder_point: Number(material.reorder_point),
       supplier_id: material.supplier_id || '',
+      category_id: material.category_id || '',
       is_for_sale: material.is_for_sale || false,
     });
     setIsAddingNew(true);
@@ -114,20 +141,35 @@ export default function RawMaterials() {
         unit: material.unit,
         cost_per_unit: Number(material.cost_per_unit),
         purchasing_quantity: Number(material.purchasing_quantity),
-        current_stock: 0, // User will enter quantity to add
+        current_stock: 0,
         reorder_point: Number(material.reorder_point),
         supplier_id: material.supplier_id || '',
+        category_id: material.category_id || '',
         is_for_sale: material.is_for_sale || false,
       });
       setEditingMaterial(material);
     }
   };
 
+  const handleShowHistory = (material: RawMaterial) => {
+    setHistoryMaterial(material);
+    setIsHistoryOpen(true);
+  };
+
+  const handleAddCategory = async () => {
+    if (!newCategoryName.trim()) return;
+    const result = await createCategory.mutateAsync({ name: newCategoryName.trim() });
+    if (result?.id) {
+      setFormData({ ...formData, category_id: result.id });
+    }
+    setNewCategoryName('');
+    setIsAddingCategory(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (editingMaterial) {
-      // If adding stock to existing material
       if (selectedExistingId && !isAddingNew) {
         const existingMaterial = materials.find((m) => m.id === selectedExistingId);
         if (existingMaterial) {
@@ -138,19 +180,36 @@ export default function RawMaterials() {
           });
         }
       } else {
-        // Regular edit
         await updateMaterial.mutateAsync({
           id: editingMaterial.id,
           ...formData,
+          category_id: formData.category_id || undefined,
         });
       }
     } else {
-      // Create new
-      await createMaterial.mutateAsync(formData);
+      await createMaterial.mutateAsync({
+        ...formData,
+        category_id: formData.category_id || undefined,
+      });
     }
 
     setIsOpen(false);
     resetForm();
+  };
+
+  const handleExcelUpload = async (data: Record<string, unknown>[]) => {
+    const items = data.map((row) => ({
+      sku: String(row.sku || ''),
+      name: String(row.name || ''),
+      description: row.description ? String(row.description) : undefined,
+      unit: (row.unit as UnitOfMeasure) || 'pcs',
+      cost_per_unit: Number(row.cost_per_unit) || 0,
+      purchasing_quantity: Number(row.purchasing_quantity) || 0,
+      current_stock: Number(row.current_stock) || 0,
+      reorder_point: Number(row.reorder_point) || 0,
+      is_for_sale: Boolean(row.is_for_sale),
+    }));
+    await bulkCreate.mutateAsync(items);
   };
 
   const isSubmitting = createMaterial.isPending || updateMaterial.isPending;
@@ -165,12 +224,15 @@ export default function RawMaterials() {
       key: 'name',
       header: 'Material Name',
       cell: (item) => (
-        <div>
+        <button
+          className="text-left hover:underline cursor-pointer"
+          onClick={() => handleShowHistory(item)}
+        >
           <p className="font-medium">{item.name}</p>
           {item.description && (
             <p className="text-xs text-muted-foreground line-clamp-1">{item.description}</p>
           )}
-        </div>
+        </button>
       ),
     },
     {
@@ -188,7 +250,6 @@ export default function RawMaterials() {
       header: 'Current Stock',
       cell: (item) => {
         const isLow = item.current_stock <= item.reorder_point;
-        const isReorder = item.current_stock <= item.reorder_point;
         return (
           <div className="flex items-center gap-2">
             <span className={isLow ? 'font-medium text-destructive' : ''}>
@@ -200,11 +261,6 @@ export default function RawMaterials() {
                 Low
               </Badge>
             )}
-            {!isLow && isReorder && (
-              <Badge variant="outline" className="erp-badge-warning text-xs">
-                Reorder
-              </Badge>
-            )}
           </div>
         );
       },
@@ -213,6 +269,11 @@ export default function RawMaterials() {
       key: 'purchasingQty',
       header: 'Purchasing Qty',
       cell: (item) => <span className="text-muted-foreground">{item.purchasing_quantity}</span>,
+    },
+    {
+      key: 'forSale',
+      header: 'For Sale',
+      cell: (item) => item.is_for_sale ? <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Yes</Badge> : <span className="text-muted-foreground">No</span>,
     },
     {
       key: 'value',
@@ -234,6 +295,10 @@ export default function RawMaterials() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleShowHistory(item)}>
+              <History className="mr-2 h-4 w-4" />
+              View History
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => handleEdit(item)}>
               <Pencil className="mr-2 h-4 w-4" />
               Edit
@@ -279,6 +344,13 @@ export default function RawMaterials() {
           isAddingNew={isAddingNew}
           setIsAddingNew={setIsAddingNew}
           suppliers={suppliers}
+          categories={categories}
+          isAddingCategory={isAddingCategory}
+          setIsAddingCategory={setIsAddingCategory}
+          newCategoryName={newCategoryName}
+          setNewCategoryName={setNewCategoryName}
+          onAddCategory={handleAddCategory}
+          isCreatingCategory={createCategory.isPending}
         />
       </div>
     );
@@ -290,10 +362,16 @@ export default function RawMaterials() {
         title="Raw Materials"
         description="Manage your raw materials inventory."
         actions={
-          <Button onClick={() => setIsOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Material
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsExcelOpen(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              Import Excel
+            </Button>
+            <Button onClick={() => setIsOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Material
+            </Button>
+          </div>
         }
       />
 
@@ -332,6 +410,28 @@ export default function RawMaterials() {
         isAddingNew={isAddingNew}
         setIsAddingNew={setIsAddingNew}
         suppliers={suppliers}
+        categories={categories}
+        isAddingCategory={isAddingCategory}
+        setIsAddingCategory={setIsAddingCategory}
+        newCategoryName={newCategoryName}
+        setNewCategoryName={setNewCategoryName}
+        onAddCategory={handleAddCategory}
+        isCreatingCategory={createCategory.isPending}
+      />
+
+      <ExcelUpload
+        title="Import Raw Materials"
+        columns={excelColumns}
+        templateFileName="raw_materials_template"
+        onUpload={handleExcelUpload}
+        isOpen={isExcelOpen}
+        onOpenChange={setIsExcelOpen}
+      />
+
+      <TransactionHistoryDialog
+        material={historyMaterial}
+        isOpen={isHistoryOpen}
+        onOpenChange={setIsHistoryOpen}
       />
     </div>
   );
@@ -351,6 +451,13 @@ function MaterialDialog({
   isAddingNew,
   setIsAddingNew,
   suppliers,
+  categories,
+  isAddingCategory,
+  setIsAddingCategory,
+  newCategoryName,
+  setNewCategoryName,
+  onAddCategory,
+  isCreatingCategory,
 }: {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -365,6 +472,13 @@ function MaterialDialog({
   isAddingNew: boolean;
   setIsAddingNew: (adding: boolean) => void;
   suppliers: { id: string; name: string }[];
+  categories: RawMaterialCategory[];
+  isAddingCategory: boolean;
+  setIsAddingCategory: (adding: boolean) => void;
+  newCategoryName: string;
+  setNewCategoryName: (name: string) => void;
+  onAddCategory: () => void;
+  isCreatingCategory: boolean;
 }) {
   const handleModeChange = (mode: 'new' | 'existing') => {
     setIsAddingNew(mode === 'new');
@@ -375,7 +489,7 @@ function MaterialDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={onSubmit}>
           <DialogHeader>
             <DialogTitle>{isEditing && isAddingNew ? 'Edit Raw Material' : 'Add Raw Material'}</DialogTitle>
@@ -504,11 +618,9 @@ function MaterialDialog({
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="currentStock">
-                      {isAddingNew ? 'Current Stock' : 'Quantity to Add'}
-                    </Label>
+                    <Label htmlFor="current_stock">Current Stock</Label>
                     <Input
-                      id="currentStock"
+                      id="current_stock"
                       type="number"
                       min="0"
                       value={formData.current_stock}
@@ -518,107 +630,134 @@ function MaterialDialog({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="purchasingQty">Purchasing Quantity</Label>
+                    <Label htmlFor="purchasing_quantity">Purchasing Qty</Label>
                     <Input
-                      id="purchasingQty"
+                      id="purchasing_quantity"
                       type="number"
                       min="0"
                       value={formData.purchasing_quantity}
                       onChange={(e) =>
                         setFormData({ ...formData, purchasing_quantity: parseFloat(e.target.value) || 0 })
                       }
-                      disabled={!isAddingNew && !!selectedExistingId}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="reorderPoint">Reorder Point</Label>
+                    <Label htmlFor="reorder_point">Reorder Point</Label>
                     <Input
-                      id="reorderPoint"
+                      id="reorder_point"
                       type="number"
                       min="0"
                       value={formData.reorder_point}
                       onChange={(e) =>
                         setFormData({ ...formData, reorder_point: parseFloat(e.target.value) || 0 })
                       }
-                      disabled={!isAddingNew && !!selectedExistingId}
                     />
                   </div>
                 </div>
-
-                {/* For Sale Checkbox */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Supplier</Label>
+                    <Select
+                      value={formData.supplier_id}
+                      onValueChange={(value) => setFormData({ ...formData, supplier_id: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select supplier..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {suppliers.map((supplier) => (
+                          <SelectItem key={supplier.id} value={supplier.id}>
+                            {supplier.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Category</Label>
+                    {isAddingCategory ? (
+                      <div className="flex gap-2">
+                        <Input
+                          value={newCategoryName}
+                          onChange={(e) => setNewCategoryName(e.target.value)}
+                          placeholder="New category name"
+                          autoFocus
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={onAddCategory}
+                          disabled={isCreatingCategory || !newCategoryName.trim()}
+                        >
+                          {isCreatingCategory ? '...' : 'Add'}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setIsAddingCategory(false)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Select
+                          value={formData.category_id}
+                          onValueChange={(value) => setFormData({ ...formData, category_id: value })}
+                        >
+                          <SelectTrigger className="flex-1">
+                            <SelectValue placeholder="Select category..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {categories.map((cat) => (
+                              <SelectItem key={cat.id} value={cat.id}>
+                                {cat.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="outline"
+                          onClick={() => setIsAddingCategory(true)}
+                        >
+                          <PlusCircle className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
                 <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     id="is_for_sale"
                     checked={formData.is_for_sale}
-                    onChange={(e) => setFormData({ ...formData, is_for_sale: e.target.checked })}
-                    className="h-4 w-4 rounded border-gray-300"
-                    disabled={!isAddingNew && !!selectedExistingId}
+                    onCheckedChange={(checked) =>
+                      setFormData({ ...formData, is_for_sale: checked === true })
+                    }
                   />
-                  <Label htmlFor="is_for_sale" className="text-sm font-normal">
-                    Available for sale in quotations
+                  <Label htmlFor="is_for_sale" className="cursor-pointer">
+                    Available for sale (can be selected in quotations)
                   </Label>
-                </div>
-
-                {/* Supplier Selection */}
-                <div className="space-y-2">
-                  <Label htmlFor="supplier">Supplier *</Label>
-                  <Select
-                    value={formData.supplier_id}
-                    onValueChange={(value) => setFormData({ ...formData, supplier_id: value })}
-                    disabled={!isAddingNew && !!selectedExistingId}
-                    required
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a supplier" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {suppliers.map((supplier) => (
-                        <SelectItem key={supplier.id} value={supplier.id}>
-                          {supplier.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                 </div>
               </>
             )}
 
-            {/* Simplified form for adding to existing */}
+            {/* Quantity field for adding to existing */}
             {!isAddingNew && selectedExistingId && (
-              <div className="rounded-lg border bg-muted/50 p-4 space-y-4">
-                <div className="text-sm">
-                  <p className="font-medium">Selected: {formData.name}</p>
-                  <p className="text-muted-foreground">Unit: {formData.unit} | Current Cost: ${formData.cost_per_unit}</p>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="addQty">Quantity to Add</Label>
-                    <Input
-                      id="addQty"
-                      type="number"
-                      min="0"
-                      value={formData.current_stock}
-                      onChange={(e) =>
-                        setFormData({ ...formData, current_stock: parseFloat(e.target.value) || 0 })
-                      }
-                      autoFocus
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="updateCost">Update Cost (optional)</Label>
-                    <Input
-                      id="updateCost"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.cost_per_unit}
-                      onChange={(e) =>
-                        setFormData({ ...formData, cost_per_unit: parseFloat(e.target.value) || 0 })
-                      }
-                    />
-                  </div>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="add_quantity">Quantity to Add *</Label>
+                <Input
+                  id="add_quantity"
+                  type="number"
+                  min="1"
+                  value={formData.current_stock}
+                  onChange={(e) =>
+                    setFormData({ ...formData, current_stock: parseFloat(e.target.value) || 0 })
+                  }
+                  required
+                />
               </div>
             )}
           </div>
@@ -627,13 +766,8 @@ function MaterialDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button 
-              type="submit" 
-              disabled={isSubmitting || (!isAddingNew && !selectedExistingId)}
-            >
-              {isSubmitting 
-                ? (isEditing ? 'Updating...' : 'Adding...') 
-                : (isEditing && isAddingNew ? 'Update Material' : isAddingNew ? 'Create Material' : 'Add Stock')}
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : isEditing && isAddingNew ? 'Update' : 'Save'}
             </Button>
           </DialogFooter>
         </form>
