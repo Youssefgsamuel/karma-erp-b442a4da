@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from '@/hooks/useProducts';
+import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, useBulkCreateProducts } from '@/hooks/useProducts';
 import { useCategories, useCreateCategory } from '@/hooks/useCategories';
 import { useCreateProductMaterials, useUpdateProductMaterials, useProductMaterials } from '@/hooks/useProductMaterials';
 import { PageHeader } from '@/components/ui/page-header';
@@ -31,11 +31,25 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Package, Plus, MoreHorizontal, Pencil, Trash2, Search, PlusCircle } from 'lucide-react';
+import { ExcelUpload, ColumnMapping } from '@/components/upload/ExcelUpload';
+import { Package, Plus, MoreHorizontal, Pencil, Trash2, Search, PlusCircle, Upload } from 'lucide-react';
 import { HybridMaterialsForm, MaterialLine } from '@/components/products/HybridMaterialsForm';
 import type { Product, ProductType, UnitOfMeasure, Category } from '@/types/erp';
 
 const unitOptions: UnitOfMeasure[] = ['pcs', 'kg', 'g', 'l', 'ml', 'm', 'cm', 'mm', 'box', 'pack'];
+
+const excelColumns: ColumnMapping[] = [
+  { key: 'sku', label: 'SKU', required: true, type: 'string' },
+  { key: 'name', label: 'Name', required: true, type: 'string' },
+  { key: 'description', label: 'Description', required: false, type: 'string' },
+  { key: 'product_type', label: 'Product Type', required: true, type: 'string' },
+  { key: 'unit', label: 'Unit', required: true, type: 'string' },
+  { key: 'selling_price', label: 'Selling Price', required: true, type: 'number' },
+  { key: 'cost_price', label: 'Cost Price', required: false, type: 'number' },
+  { key: 'manufacturing_time_minutes', label: 'Mfg Time (min)', required: false, type: 'number' },
+  { key: 'minimum_stock', label: 'Minimum Stock', required: false, type: 'number' },
+  { key: 'current_stock', label: 'Current Stock', required: false, type: 'number' },
+];
 
 const initialFormData = {
   sku: '',
@@ -60,8 +74,10 @@ export default function Products() {
   const createCategory = useCreateCategory();
   const createMaterials = useCreateProductMaterials();
   const updateMaterials = useUpdateProductMaterials();
+  const bulkCreate = useBulkCreateProducts();
 
   const [isOpen, setIsOpen] = useState(false);
+  const [isExcelOpen, setIsExcelOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<(Product & { category: Category | null }) | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState(initialFormData);
@@ -191,6 +207,22 @@ export default function Products() {
     
     setIsOpen(false);
     resetForm();
+  };
+
+  const handleExcelUpload = async (data: Record<string, unknown>[]) => {
+    const items = data.map((row) => ({
+      sku: String(row.sku || ''),
+      name: String(row.name || ''),
+      description: row.description ? String(row.description) : undefined,
+      product_type: (row.product_type as ProductType) || 'in_house',
+      unit: (row.unit as UnitOfMeasure) || 'pcs',
+      selling_price: Number(row.selling_price) || 0,
+      cost_price: Number(row.cost_price) || 0,
+      manufacturing_time_minutes: Number(row.manufacturing_time_minutes) || 60,
+      minimum_stock: Number(row.minimum_stock) || 0,
+      current_stock: Number(row.current_stock) || 0,
+    }));
+    await bulkCreate.mutateAsync(items);
   };
 
   const isSubmitting = createProduct.isPending || updateProduct.isPending || createMaterials.isPending || updateMaterials.isPending;
@@ -347,10 +379,16 @@ export default function Products() {
         title="Products"
         description="Manage your product catalog and BOMs."
         actions={
-          <Button onClick={() => setIsOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Product
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsExcelOpen(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              Import Excel
+            </Button>
+            <Button onClick={() => setIsOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Product
+            </Button>
+          </div>
         }
       />
 
@@ -392,6 +430,15 @@ export default function Products() {
         isCreatingCategory={createCategory.isPending}
         hybridMaterials={hybridMaterials}
         setHybridMaterials={setHybridMaterials}
+      />
+
+      <ExcelUpload
+        title="Import Products"
+        columns={excelColumns}
+        templateFileName="products_template"
+        onUpload={handleExcelUpload}
+        isOpen={isExcelOpen}
+        onOpenChange={setIsExcelOpen}
       />
     </div>
   );

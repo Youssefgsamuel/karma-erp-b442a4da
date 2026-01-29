@@ -182,3 +182,34 @@ export function useDeleteProduct() {
     },
   });
 }
+
+export function useBulkCreateProducts() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (items: Omit<CreateProductInput, 'category_id'>[]) => {
+      const { data, error } = await supabase
+        .from('products')
+        .insert(items)
+        .select();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      toast({
+        title: 'Bulk Import Successful',
+        description: `${data.length} products imported.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: 'destructive',
+        title: 'Bulk Import Failed',
+        description: error.message,
+      });
+    },
+  });
+}
