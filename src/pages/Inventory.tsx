@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Warehouse, Package, Boxes, AlertTriangle, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
 import { DataTable, Column } from '@/components/ui/data-table';
+import { AssignedQuantityDialog } from '@/components/inventory/AssignedQuantityDialog';
 import type { Product, RawMaterial } from '@/types/erp';
 import { formatNumber, formatCurrency } from '@/lib/utils';
 
@@ -33,8 +34,9 @@ export default function Inventory() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editingMaterial, setEditingMaterial] = useState<RawMaterial | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'product' | 'material'; item: Product | RawMaterial } | null>(null);
-  const [productFormData, setProductFormData] = useState({ current_stock: 0, minimum_stock: 0, assigned_to: '' });
+  const [productFormData, setProductFormData] = useState({ current_stock: 0, minimum_stock: 0, assigned_quantity: 0 });
   const [materialFormData, setMaterialFormData] = useState({ current_stock: 0, purchasing_quantity: 0, reorder_point: 0 });
+  const [assignedDialog, setAssignedDialog] = useState<{ productId: string; productName: string; quantity: number } | null>(null);
 
   const productValue = products.reduce(
     (sum, p) => sum + Number(p.current_stock) * Number(p.selling_price),
@@ -51,7 +53,11 @@ export default function Inventory() {
 
   const handleEditProduct = (product: Product) => {
     setEditingProduct(product);
-    setProductFormData({ current_stock: product.current_stock, minimum_stock: product.minimum_stock, assigned_to: product.assigned_to || '' });
+    setProductFormData({ 
+      current_stock: product.current_stock, 
+      minimum_stock: product.minimum_stock, 
+      assigned_quantity: (product as Product & { assigned_quantity?: number }).assigned_quantity || 0
+    });
   };
 
   const handleEditMaterial = (material: RawMaterial) => {
@@ -117,15 +123,21 @@ export default function Inventory() {
       cell: (item) => <span className="text-muted-foreground">{formatNumber(item.minimum_stock)}</span>,
     },
     {
-      key: 'assigned_to',
-      header: 'Assigned To',
-      cell: (item) => (
-        item.assigned_to ? (
-          <Badge variant="secondary">{item.assigned_to}</Badge>
+      key: 'assigned_quantity',
+      header: 'Assigned Qty',
+      cell: (item) => {
+        const assignedQty = (item as Product & { assigned_quantity?: number }).assigned_quantity || 0;
+        return assignedQty > 0 ? (
+          <button
+            className="font-medium text-primary hover:underline cursor-pointer"
+            onClick={() => setAssignedDialog({ productId: item.id, productName: item.name, quantity: assignedQty })}
+          >
+            {formatNumber(assignedQty)}
+          </button>
         ) : (
-          <span className="text-muted-foreground">-</span>
-        )
-      ),
+          <span className="text-muted-foreground">0</span>
+        );
+      },
     },
     {
       key: 'value',
@@ -354,15 +366,6 @@ export default function Inventory() {
                 onChange={(e) => setProductFormData(prev => ({ ...prev, minimum_stock: Number(e.target.value) }))}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="product_assigned">Assigned To (Reserved)</Label>
-              <Input
-                id="product_assigned"
-                placeholder="Person name (leave empty if not reserved)"
-                value={productFormData.assigned_to}
-                onChange={(e) => setProductFormData(prev => ({ ...prev, assigned_to: e.target.value }))}
-              />
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingProduct(null)}>Cancel</Button>
@@ -435,6 +438,17 @@ export default function Inventory() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Assigned Quantity Dialog */}
+      {assignedDialog && (
+        <AssignedQuantityDialog
+          open={!!assignedDialog}
+          onOpenChange={() => setAssignedDialog(null)}
+          productId={assignedDialog.productId}
+          productName={assignedDialog.productName}
+          assignedQuantity={assignedDialog.quantity}
+        />
+      )}
     </div>
   );
 }

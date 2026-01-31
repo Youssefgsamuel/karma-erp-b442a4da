@@ -202,6 +202,7 @@ export type Database = {
           priority: string
           product_id: string
           quantity: number
+          quotation_id: string | null
           sales_order_id: string | null
           status: string
           updated_at: string
@@ -219,6 +220,7 @@ export type Database = {
           priority?: string
           product_id: string
           quantity?: number
+          quotation_id?: string | null
           sales_order_id?: string | null
           status?: string
           updated_at?: string
@@ -236,6 +238,7 @@ export type Database = {
           priority?: string
           product_id?: string
           quantity?: number
+          quotation_id?: string | null
           sales_order_id?: string | null
           status?: string
           updated_at?: string
@@ -246,6 +249,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manufacturing_orders_quotation_id_fkey"
+            columns: ["quotation_id"]
+            isOneToOne: false
+            referencedRelation: "quotations"
             referencedColumns: ["id"]
           },
           {
@@ -341,6 +351,61 @@ export type Database = {
         }
         Relationships: []
       }
+      product_assignments: {
+        Row: {
+          created_at: string
+          id: string
+          mo_id: string | null
+          product_id: string
+          quantity: number
+          quotation_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mo_id?: string | null
+          product_id: string
+          quantity?: number
+          quotation_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mo_id?: string | null
+          product_id?: string
+          quantity?: number
+          quotation_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_assignments_mo_id_fkey"
+            columns: ["mo_id"]
+            isOneToOne: false
+            referencedRelation: "manufacturing_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_assignments_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_assignments_quotation_id_fkey"
+            columns: ["quotation_id"]
+            isOneToOne: false
+            referencedRelation: "quotations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_materials: {
         Row: {
           created_at: string
@@ -388,6 +453,7 @@ export type Database = {
       }
       products: {
         Row: {
+          assigned_quantity: number
           assigned_to: string | null
           category_id: string | null
           cost_price: number
@@ -406,6 +472,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          assigned_quantity?: number
           assigned_to?: string | null
           category_id?: string | null
           cost_price?: number
@@ -424,6 +491,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          assigned_quantity?: number
           assigned_to?: string | null
           category_id?: string | null
           cost_price?: number
@@ -560,6 +628,41 @@ export type Database = {
           },
         ]
       }
+      quotation_edit_history: {
+        Row: {
+          changes: Json
+          edited_at: string
+          edited_by: string | null
+          id: string
+          previous_values: Json
+          quotation_id: string
+        }
+        Insert: {
+          changes: Json
+          edited_at?: string
+          edited_by?: string | null
+          id?: string
+          previous_values: Json
+          quotation_id: string
+        }
+        Update: {
+          changes?: Json
+          edited_at?: string
+          edited_by?: string | null
+          id?: string
+          previous_values?: Json
+          quotation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotation_edit_history_quotation_id_fkey"
+            columns: ["quotation_id"]
+            isOneToOne: false
+            referencedRelation: "quotations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quotation_items: {
         Row: {
           created_at: string
@@ -617,6 +720,7 @@ export type Database = {
           customer_name: string
           customer_phone: string | null
           discount_percent: number
+          edit_count: number
           id: string
           notes: string | null
           quotation_number: string
@@ -636,6 +740,7 @@ export type Database = {
           customer_name: string
           customer_phone?: string | null
           discount_percent?: number
+          edit_count?: number
           id?: string
           notes?: string | null
           quotation_number: string
@@ -655,6 +760,7 @@ export type Database = {
           customer_name?: string
           customer_phone?: string | null
           discount_percent?: number
+          edit_count?: number
           id?: string
           notes?: string | null
           quotation_number?: string

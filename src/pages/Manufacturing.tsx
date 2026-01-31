@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Plus, MoreHorizontal, Play, CheckCircle, XCircle, Trash2, AlertTriangle, CheckCircle2, Eye, ListChecks } from 'lucide-react';
+import { toast } from 'sonner';
 import { useManufacturingOrders, useCreateManufacturingOrder, useUpdateManufacturingOrder, useDeleteManufacturingOrder, ManufacturingOrder, CreateMOInput } from '@/hooks/useManufacturingOrders';
 import { useMoItems, useCreateMoItems, useUpdateMoItemStatus, useDeleteMoItem, MoItemWithProduct } from '@/hooks/useMoItems';
 import { useProducts } from '@/hooks/useProducts';
@@ -64,12 +65,10 @@ export default function Manufacturing() {
   const [isItemsDialogOpen, setIsItemsDialogOpen] = useState(false);
   const [selectedMO, setSelectedMO] = useState<ManufacturingOrder | null>(null);
   
-  // Multi-item form state
+  // All items form state (no primary product)
   const [moItems, setMoItems] = useState<MoItemLine[]>([{ product_id: '', quantity: 1, notes: '' }]);
-  const [formData, setFormData] = useState<Omit<CreateMOInput, 'product_id' | 'quantity'> & { product_id: string; quantity: number }>({
-    product_id: '',
-    quantity: 1,
-    priority: 'normal',
+  const [formData, setFormData] = useState({
+    priority: 'normal' as ManufacturingOrder['priority'],
     planned_start: new Date().toISOString().split('T')[0],
     planned_end: '',
     notes: '',
@@ -78,10 +77,12 @@ export default function Manufacturing() {
   // Fetch MO items for selected MO
   const { data: selectedMoItems = [] } = useMoItems(selectedMO?.id || '');
 
-  // BOM availability check for main product
+  // BOM availability check for first item
+  const firstItemProductId = moItems[0]?.product_id || '';
+  const firstItemQuantity = moItems[0]?.quantity || 1;
   const { data: bomAvailability, isLoading: isCheckingAvailability } = useBomAvailability(
-    formData.product_id,
-    formData.quantity
+    firstItemProductId,
+    firstItemQuantity
   );
 
   const handleAddItemLine = () => {
@@ -106,21 +107,30 @@ export default function Manufacturing() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Create the main MO with the first/primary product
+    // Filter valid items
+    const validItems = moItems.filter(item => item.product_id && item.quantity > 0);
+    if (validItems.length === 0) {
+      toast.error('Please add at least one product');
+      return;
+    }
+
+    // Use first item as the MO's primary product
+    const firstItem = validItems[0];
+    
+    // Create the MO with the first product
     const moData = await createMO.mutateAsync({
-      product_id: formData.product_id,
-      quantity: formData.quantity,
+      product_id: firstItem.product_id,
+      quantity: firstItem.quantity,
       priority: formData.priority,
       planned_start: formData.planned_start,
       planned_end: formData.planned_end,
       notes: formData.notes,
     });
 
-    // If there are additional items, create them
-    const additionalItems = moItems.filter(item => item.product_id && item.product_id !== formData.product_id);
-    if (additionalItems.length > 0 && moData?.id) {
+    // If there are additional items, create them as mo_items
+    if (validItems.length > 1 && moData?.id) {
       await createMoItems.mutateAsync(
-        additionalItems.map(item => ({
+        validItems.slice(1).map(item => ({
           mo_id: moData.id,
           product_id: item.product_id,
           quantity: item.quantity,
@@ -131,8 +141,6 @@ export default function Manufacturing() {
 
     setIsDialogOpen(false);
     setFormData({
-      product_id: '',
-      quantity: 1,
       priority: 'normal',
       planned_start: new Date().toISOString().split('T')[0],
       planned_end: '',
@@ -159,7 +167,7 @@ export default function Manufacturing() {
         {mo.mo_number}
       </button>
     )},
-    { key: 'product', header: 'Primary Product', cell: (mo) => mo.product?.name || 'Unknown' },
+    { key: 'product', header: 'Products', cell: (mo) => mo.product?.name || 'Unknown' },
     { key: 'quantity', header: 'Qty', cell: (mo) => mo.quantity },
     { key: 'status', header: 'Status', cell: (mo) => (
       <Badge className={statusColors[mo.status]}>{mo.status.replace('_', ' ')}</Badge>
@@ -231,35 +239,49 @@ export default function Manufacturing() {
             <DialogDescription>Create a new manufacturing order with one or more products.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* All Items */}
             <div className="space-y-2">
-              <Label>Primary Product *</Label>
-              <Select 
-                value={formData.product_id} 
-                onValueChange={(v) => setFormData(prev => ({ ...prev, product_id: v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select product" />
-                </SelectTrigger>
-                <SelectContent>
-                  {products.map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name} ({p.sku})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center justify-between">
+                <Label>Products *</Label>
+                <Button type="button" variant="outline" size="sm" onClick={handleAddItemLine}>
+                  <Plus className="mr-2 h-4 w-4" /> Add Product
+                </Button>
+              </div>
+              <div className="space-y-2 border rounded-lg p-3">
+                {moItems.map((item, index) => (
+                  <div key={index} className="flex gap-2 items-start">
+                    <Select 
+                      value={item.product_id} 
+                      onValueChange={(v) => handleItemLineChange(index, 'product_id', v)}
+                    >
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Select product" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {products.map(p => (
+                          <SelectItem key={p.id} value={p.id}>{p.name} ({p.sku})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      min={1}
+                      placeholder="Qty"
+                      value={item.quantity}
+                      onChange={(e) => handleItemLineChange(index, 'quantity', Number(e.target.value))}
+                      className="w-20"
+                    />
+                    {moItems.length > 1 && (
+                      <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveItemLine(index)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="quantity">Primary Quantity *</Label>
-                <Input
-                  id="quantity"
-                  type="number"
-                  min={1}
-                  value={formData.quantity}
-                  onChange={(e) => setFormData(prev => ({ ...prev, quantity: Number(e.target.value) }))}
-                  required
-                />
-              </div>
               <div className="space-y-2">
                 <Label htmlFor="priority">Priority</Label>
                 <Select 
@@ -277,48 +299,6 @@ export default function Manufacturing() {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-
-            {/* Additional Items */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Additional Items (Optional)</Label>
-                <Button type="button" variant="outline" size="sm" onClick={handleAddItemLine}>
-                  <Plus className="mr-2 h-4 w-4" /> Add Item
-                </Button>
-              </div>
-              {moItems.length > 0 && (
-                <div className="space-y-2 border rounded-lg p-3">
-                  {moItems.map((item, index) => (
-                    <div key={index} className="flex gap-2 items-start">
-                      <Select 
-                        value={item.product_id} 
-                        onValueChange={(v) => handleItemLineChange(index, 'product_id', v)}
-                      >
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Select product" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {products.filter(p => p.id !== formData.product_id).map(p => (
-                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Input
-                        type="number"
-                        min={1}
-                        placeholder="Qty"
-                        value={item.quantity}
-                        onChange={(e) => handleItemLineChange(index, 'quantity', Number(e.target.value))}
-                        className="w-20"
-                      />
-                      <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveItemLine(index)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -352,7 +332,7 @@ export default function Manufacturing() {
             </div>
 
             {/* BOM Availability Check */}
-            {formData.product_id && bomAvailability && (
+            {firstItemProductId && bomAvailability && (
               <div className={`rounded-lg p-4 ${bomAvailability.is_fully_available ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' : 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800'}`}>
                 <div className="flex items-center gap-2 mb-2">
                   {bomAvailability.is_fully_available ? (
@@ -393,7 +373,7 @@ export default function Manufacturing() {
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={createMO.isPending || !formData.product_id}>
+              <Button type="submit" disabled={createMO.isPending || !firstItemProductId}>
                 {createMO.isPending ? 'Creating...' : 'Create MO'}
               </Button>
             </DialogFooter>

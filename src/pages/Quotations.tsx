@@ -10,12 +10,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Plus, MoreHorizontal, FileCheck, Trash2, Send, X, Check, ArrowRightLeft, Mail, MessageCircle, Filter } from 'lucide-react';
+import { Plus, MoreHorizontal, FileCheck, Trash2, Send, X, Check, ArrowRightLeft, Mail, MessageCircle, Filter, History, Edit } from 'lucide-react';
 import { useQuotations, useCreateQuotation, useUpdateQuotationStatus, useDeleteQuotation, useConvertToSalesOrder, Quotation, CreateQuotationInput } from '@/hooks/useQuotations';
 import { useProducts } from '@/hooks/useProducts';
 import { useRawMaterials } from '@/hooks/useRawMaterials';
 import { useCategories } from '@/hooks/useCategories';
 import { useRawMaterialCategories } from '@/hooks/useRawMaterialCategories';
+import { QuotationEditHistoryDialog } from '@/components/quotations/QuotationEditHistoryDialog';
 import { format } from 'date-fns';
 import { formatNumber, formatCurrency } from '@/lib/utils';
 
@@ -56,6 +57,7 @@ export default function Quotations() {
   const [selectedProductCategory, setSelectedProductCategory] = useState<string>('all');
   const [selectedRawMaterialCategory, setSelectedRawMaterialCategory] = useState<string>('all');
   const [itemType, setItemType] = useState<'product' | 'material'>('product');
+  const [historyDialog, setHistoryDialog] = useState<{ id: string; number: string } | null>(null);
 
   // Filtered products and raw materials
   const filteredProducts = useMemo(() => {
@@ -177,7 +179,22 @@ export default function Quotations() {
     { key: 'status', header: 'Status', cell: (q) => (
       <Badge className={statusColors[q.status]}>{q.status}</Badge>
     )},
+    { key: 'edited', header: 'Edited', cell: (q) => {
+      const editCount = (q as Quotation & { edit_count?: number }).edit_count || 0;
+      return editCount > 0 ? (
+        <button
+          className="flex items-center gap-1 text-sm text-primary hover:underline cursor-pointer"
+          onClick={() => setHistoryDialog({ id: q.id, number: q.quotation_number })}
+        >
+          <History className="h-3 w-3" />
+          {editCount}x
+        </button>
+      ) : (
+        <span className="text-muted-foreground">-</span>
+      );
+    }},
     { key: 'valid_until', header: 'Valid Until', cell: (q) => format(new Date(q.valid_until), 'MMM d, yyyy') },
+    { key: 'total', header: 'Total', cell: (q) => formatCurrency(q.total) },
     { key: 'total', header: 'Total', cell: (q) => formatCurrency(q.total) },
     { key: 'actions', header: '', cell: (q) => (
       <DropdownMenu>
@@ -461,6 +478,16 @@ export default function Quotations() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Edit History Dialog */}
+      {historyDialog && (
+        <QuotationEditHistoryDialog
+          open={!!historyDialog}
+          onOpenChange={() => setHistoryDialog(null)}
+          quotationId={historyDialog.id}
+          quotationNumber={historyDialog.number}
+        />
+      )}
     </div>
   );
 }
