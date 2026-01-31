@@ -128,8 +128,40 @@ export function useAcceptQualityControl() {
 
       if (updateMoError) throw updateMoError;
 
+      const mo = qcRecord.manufacturing_order as { sales_order_id: string | null; mo_number: string; quotation_id: string | null };
+
+      // Update product assignments to completed
+      if (mo.quotation_id) {
+        await supabase
+          .from('product_assignments')
+          .update({ status: 'completed' })
+          .eq('mo_id', qcRecord.mo_id);
+
+        // Recalculate assigned_quantity for affected products
+        const { data: moItems } = await supabase
+          .from('mo_items')
+          .select('product_id')
+          .eq('mo_id', qcRecord.mo_id);
+
+        const productIds = [qcRecord.product_id, ...(moItems?.map(i => i.product_id) || [])];
+        
+        for (const productId of productIds) {
+          const { data: currentAssignments } = await supabase
+            .from('product_assignments')
+            .select('quantity')
+            .eq('product_id', productId)
+            .in('status', ['pending', 'in_production']);
+
+          const totalAssigned = currentAssignments?.reduce((sum, a) => sum + Number(a.quantity), 0) || 0;
+
+          await supabase
+            .from('products')
+            .update({ assigned_quantity: totalAssigned })
+            .eq('id', productId);
+        }
+      }
+
       // Add finished goods to inventory (only if not linked to sales order)
-      const mo = qcRecord.manufacturing_order as any;
       if (!mo.sales_order_id) {
         const { data: product } = await supabase
           .from('products')
@@ -163,6 +195,7 @@ export function useAcceptQualityControl() {
       queryClient.invalidateQueries({ queryKey: ['quality-control-counts'] });
       queryClient.invalidateQueries({ queryKey: ['manufacturing_orders'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['product-assignments'] });
       toast.success('QC Accepted - Stock updated');
     },
     onError: (error) => {

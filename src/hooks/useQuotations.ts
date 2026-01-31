@@ -14,6 +14,37 @@ async function generateMONumber() {
   const nextNum = lastNum ? parseInt(lastNum.replace('MO-', '')) + 1 : 1;
   return `MO-${String(nextNum).padStart(5, '0')}`;
 }
+
+// Helper to create product assignments for quotation items
+async function createProductAssignments(quotationId: string, items: Array<{ product_id: string | null; quantity: number }>) {
+  const productItems = items.filter(item => item.product_id);
+  if (productItems.length === 0) return;
+
+  const assignments = productItems.map(item => ({
+    product_id: item.product_id!,
+    quotation_id: quotationId,
+    quantity: item.quantity,
+    status: 'pending' as const,
+  }));
+
+  await supabase.from('product_assignments').insert(assignments);
+
+  // Update assigned_quantity for each product
+  for (const item of productItems) {
+    const { data: currentAssignments } = await supabase
+      .from('product_assignments')
+      .select('quantity')
+      .eq('product_id', item.product_id!)
+      .in('status', ['pending', 'in_production']);
+
+    const totalAssigned = currentAssignments?.reduce((sum, a) => sum + Number(a.quantity), 0) || 0;
+
+    await supabase
+      .from('products')
+      .update({ assigned_quantity: totalAssigned })
+      .eq('id', item.product_id!);
+  }
+}
 export interface Quotation {
   id: string;
   quotation_number: string;
@@ -200,7 +231,7 @@ export function useUpdateQuotationStatus() {
 
       if (error) throw error;
 
-      // If status is accepted and createMO is true, create manufacturing orders for products
+      // If status is accepted and createMO is true, create a single MO with all product items
       if (status === 'accepted' && createMO) {
         const { data: quotationItems } = await supabase
           .from('quotation_items')
@@ -208,19 +239,47 @@ export function useUpdateQuotationStatus() {
           .eq('quotation_id', id);
 
         if (quotationItems && quotationItems.length > 0) {
-          for (const item of quotationItems) {
-            if (item.product_id) {
-              const mo_number = await generateMONumber();
-              await supabase
-                .from('manufacturing_orders')
-                .insert({
-                  mo_number,
-                  product_id: item.product_id,
-                  quantity: item.quantity,
-                  priority: 'normal',
-                  notes: `Auto-created from quotation ${data.quotation_number}`,
-                });
+          // Get only items with products
+          const productItems = quotationItems.filter(item => item.product_id);
+          
+          if (productItems.length > 0) {
+            // Create one MO with the first product as primary
+            const mo_number = await generateMONumber();
+            const firstItem = productItems[0];
+            
+            const { data: moData, error: moError } = await supabase
+              .from('manufacturing_orders')
+              .insert({
+                mo_number,
+                product_id: firstItem.product_id,
+                quantity: firstItem.quantity,
+                priority: 'normal',
+                quotation_id: id,
+                notes: `Auto-created from quotation ${data.quotation_number}`,
+              })
+              .select()
+              .single();
+
+            if (moError) throw moError;
+
+            // If there are more items, add them as mo_items
+            if (productItems.length > 1) {
+              const additionalItems = productItems.slice(1).map(item => ({
+                mo_id: moData.id,
+                product_id: item.product_id,
+                quantity: item.quantity,
+                status: 'pending' as const,
+                notes: `From quotation ${data.quotation_number}`,
+              }));
+
+              await supabase.from('mo_items').insert(additionalItems);
             }
+
+            // Update product assignments status to in_production
+            await supabase
+              .from('product_assignments')
+              .update({ status: 'in_production', mo_id: moData.id })
+              .eq('quotation_id', id);
           }
         }
       }
@@ -229,9 +288,12 @@ export function useUpdateQuotationStatus() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['quotations'] });
+      queryClient.invalidateQueries({ queryKey: ['product-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
       if (variables.status === 'accepted' && variables.createMO) {
         queryClient.invalidateQueries({ queryKey: ['manufacturing_orders'] });
-        toast.success('Quotation accepted and Manufacturing Orders created');
+        queryClient.invalidateQueries({ queryKey: ['mo-items'] });
+        toast.success('Quotation accepted and Manufacturing Order created with all items');
       } else {
         toast.success('Quotation status updated');
       }
