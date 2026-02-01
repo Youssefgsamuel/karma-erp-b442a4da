@@ -1037,6 +1037,54 @@ export type Database = {
           },
         ]
       }
+      semi_finished_goods: {
+        Row: {
+          created_at: string
+          id: string
+          missing_items: string
+          mo_id: string | null
+          notes: string | null
+          product_id: string
+          quantity: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          missing_items: string
+          mo_id?: string | null
+          notes?: string | null
+          product_id: string
+          quantity?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          missing_items?: string
+          mo_id?: string | null
+          notes?: string | null
+          product_id?: string
+          quantity?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "semi_finished_goods_mo_id_fkey"
+            columns: ["mo_id"]
+            isOneToOne: false
+            referencedRelation: "manufacturing_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "semi_finished_goods_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       suppliers: {
         Row: {
           address: string | null
