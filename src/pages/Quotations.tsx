@@ -3,6 +3,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,13 +11,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Plus, MoreHorizontal, FileCheck, Trash2, Send, X, Check, ArrowRightLeft, Mail, MessageCircle, Filter, History, Edit } from 'lucide-react';
-import { useQuotations, useCreateQuotation, useUpdateQuotationStatus, useDeleteQuotation, useConvertToSalesOrder, Quotation, CreateQuotationInput } from '@/hooks/useQuotations';
+import { Plus, MoreHorizontal, Trash2, Send, X, Check, Mail, MessageCircle, Filter, History, Edit, PackageCheck, Info } from 'lucide-react';
+import { useQuotations, useCreateQuotation, useUpdateQuotationStatus, useDeleteQuotation, Quotation, CreateQuotationInput } from '@/hooks/useQuotations';
 import { useProducts } from '@/hooks/useProducts';
 import { useRawMaterials } from '@/hooks/useRawMaterials';
 import { useCategories } from '@/hooks/useCategories';
 import { useRawMaterialCategories } from '@/hooks/useRawMaterialCategories';
 import { QuotationEditHistoryDialog } from '@/components/quotations/QuotationEditHistoryDialog';
+import { QuotationDetailsDialog } from '@/components/quotations/QuotationDetailsDialog';
+import { QuotationEditDialog } from '@/components/quotations/QuotationEditDialog';
 import { format } from 'date-fns';
 import { formatNumber, formatCurrency } from '@/lib/utils';
 
@@ -38,7 +41,6 @@ export default function Quotations() {
   const createQuotation = useCreateQuotation();
   const updateStatus = useUpdateQuotationStatus();
   const deleteQuotation = useDeleteQuotation();
-  const convertToSalesOrder = useConvertToSalesOrder();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState<CreateQuotationInput>({
@@ -58,6 +60,8 @@ export default function Quotations() {
   const [selectedRawMaterialCategory, setSelectedRawMaterialCategory] = useState<string>('all');
   const [itemType, setItemType] = useState<'product' | 'material'>('product');
   const [historyDialog, setHistoryDialog] = useState<{ id: string; number: string } | null>(null);
+  const [detailsDialog, setDetailsDialog] = useState<string | null>(null);
+  const [editDialog, setEditDialog] = useState<string | null>(null);
 
   // Filtered products and raw materials
   const filteredProducts = useMemo(() => {
@@ -73,6 +77,23 @@ export default function Quotations() {
     if (selectedRawMaterialCategory === 'all') return saleableRawMaterials;
     return saleableRawMaterials.filter(m => m.category_id === selectedRawMaterialCategory);
   }, [saleableRawMaterials, selectedRawMaterialCategory]);
+
+  // Check inventory availability for items
+  const inventoryAvailability = useMemo(() => {
+    const productItems = formData.items.filter(item => item.product_id);
+    if (productItems.length === 0) return { allInStock: false, partialInStock: false, items: [] };
+    
+    const itemsWithAvailability = productItems.map(item => {
+      const product = products.find(p => p.id === item.product_id);
+      const inStock = product ? Number(product.current_stock) >= item.quantity : false;
+      return { ...item, product, inStock, available: product?.current_stock || 0 };
+    });
+    
+    const allInStock = itemsWithAvailability.every(item => item.inStock);
+    const partialInStock = itemsWithAvailability.some(item => item.inStock);
+    
+    return { allInStock, partialInStock, items: itemsWithAvailability };
+  }, [formData.items, products]);
 
   const handleAddItem = () => {
     setFormData(prev => ({
@@ -174,7 +195,14 @@ export default function Quotations() {
   const total = subtotal - discountAmount + taxAmount;
 
   const columns: Column<Quotation>[] = [
-    { key: 'quotation_number', header: 'Number', cell: (q) => <span className="font-medium">{q.quotation_number}</span> },
+    { key: 'quotation_number', header: 'Number', cell: (q) => (
+      <button 
+        className="font-medium text-primary hover:underline cursor-pointer"
+        onClick={() => setDetailsDialog(q.id)}
+      >
+        {q.quotation_number}
+      </button>
+    )},
     { key: 'customer_name', header: 'Customer', cell: (q) => q.customer_name },
     { key: 'status', header: 'Status', cell: (q) => (
       <Badge className={statusColors[q.status]}>{q.status}</Badge>
@@ -195,13 +223,17 @@ export default function Quotations() {
     }},
     { key: 'valid_until', header: 'Valid Until', cell: (q) => format(new Date(q.valid_until), 'MMM d, yyyy') },
     { key: 'total', header: 'Total', cell: (q) => formatCurrency(q.total) },
-    { key: 'total', header: 'Total', cell: (q) => formatCurrency(q.total) },
     { key: 'actions', header: '', cell: (q) => (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {(q.status === 'draft' || q.status === 'sent') && (
+            <DropdownMenuItem onClick={() => setEditDialog(q.id)}>
+              <Edit className="mr-2 h-4 w-4" /> Edit Quotation
+            </DropdownMenuItem>
+          )}
           {q.status === 'draft' && (
             <>
               {q.customer_phone && (
@@ -222,17 +254,15 @@ export default function Quotations() {
           {q.status === 'sent' && (
             <>
               <DropdownMenuItem onClick={() => updateStatus.mutate({ id: q.id, status: 'accepted', createMO: true })}>
-                <Check className="mr-2 h-4 w-4" /> Mark Accepted & Create MO
+                <Check className="mr-2 h-4 w-4" /> Accept & Create MO
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: q.id, status: 'accepted', createMO: false })}>
+                <PackageCheck className="mr-2 h-4 w-4" /> Accept (From Inventory)
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => updateStatus.mutate({ id: q.id, status: 'rejected' })}>
                 <X className="mr-2 h-4 w-4" /> Mark Rejected
               </DropdownMenuItem>
             </>
-          )}
-          {q.status === 'accepted' && (
-            <DropdownMenuItem onClick={() => convertToSalesOrder.mutate(q.id)}>
-              <ArrowRightLeft className="mr-2 h-4 w-4" /> Convert to Sales Order
-            </DropdownMenuItem>
           )}
           <DropdownMenuItem onClick={() => deleteQuotation.mutate(q.id)} className="text-destructive">
             <Trash2 className="mr-2 h-4 w-4" /> Delete
@@ -462,6 +492,28 @@ export default function Quotations() {
               />
             </div>
 
+            {/* Inventory Availability Alert */}
+            {inventoryAvailability.items.length > 0 && (
+              <Alert className={inventoryAvailability.allInStock ? 'border-green-500 bg-green-50 dark:bg-green-950' : 'border-blue-500 bg-blue-50 dark:bg-blue-950'}>
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  {inventoryAvailability.allInStock ? (
+                    <span className="text-green-700 dark:text-green-300">
+                      <strong>All products are in stock!</strong> When accepted, you can fulfill this order directly from inventory without creating a Manufacturing Order.
+                    </span>
+                  ) : inventoryAvailability.partialInStock ? (
+                    <span className="text-blue-700 dark:text-blue-300">
+                      Some products are available in inventory. A Manufacturing Order will be needed for items not in stock.
+                    </span>
+                  ) : (
+                    <span className="text-blue-700 dark:text-blue-300">
+                      Products not in stock. A Manufacturing Order will be created when this quotation is accepted.
+                    </span>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="bg-muted p-4 rounded-lg space-y-1 text-sm">
               <div className="flex justify-between"><span>Subtotal:</span> <span>{formatCurrency(subtotal)}</span></div>
               <div className="flex justify-between"><span>Discount:</span> <span>-{formatCurrency(discountAmount)}</span></div>
@@ -486,6 +538,24 @@ export default function Quotations() {
           onOpenChange={() => setHistoryDialog(null)}
           quotationId={historyDialog.id}
           quotationNumber={historyDialog.number}
+        />
+      )}
+
+      {/* Details Dialog */}
+      {detailsDialog && (
+        <QuotationDetailsDialog
+          open={!!detailsDialog}
+          onOpenChange={() => setDetailsDialog(null)}
+          quotationId={detailsDialog}
+        />
+      )}
+
+      {/* Edit Dialog */}
+      {editDialog && (
+        <QuotationEditDialog
+          open={!!editDialog}
+          onOpenChange={() => setEditDialog(null)}
+          quotationId={editDialog}
         />
       )}
     </div>

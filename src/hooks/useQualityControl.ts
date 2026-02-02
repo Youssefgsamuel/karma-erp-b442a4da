@@ -161,31 +161,68 @@ export function useAcceptQualityControl() {
         }
       }
 
-      // Add finished goods to inventory (only if not linked to sales order)
-      if (!mo.sales_order_id) {
-        const { data: product } = await supabase
+      // Add finished goods to inventory
+      const { data: product } = await supabase
+        .from('products')
+        .select('current_stock')
+        .eq('id', qcRecord.product_id)
+        .single();
+
+      if (product) {
+        const newStock = Number(product.current_stock) + Number(qcRecord.quantity);
+        await supabase
+          .from('products')
+          .update({ current_stock: newStock })
+          .eq('id', qcRecord.product_id);
+
+        // Record inventory transaction
+        await supabase.from('inventory_transactions').insert({
+          product_id: qcRecord.product_id,
+          transaction_type: 'in' as const,
+          quantity: qcRecord.quantity,
+          reference_type: 'quality_control',
+          reference_id: qcId,
+          notes: `QC Accepted for MO ${mo.mo_number}`,
+        });
+      }
+
+      // Also update stock for all mo_items
+      const { data: allMoItems } = await supabase
+        .from('mo_items')
+        .select('product_id, quantity')
+        .eq('mo_id', qcRecord.mo_id);
+
+      for (const item of allMoItems || []) {
+        const { data: itemProduct } = await supabase
           .from('products')
           .select('current_stock')
-          .eq('id', qcRecord.product_id)
+          .eq('id', item.product_id)
           .single();
 
-        if (product) {
-          const newStock = Number(product.current_stock) + Number(qcRecord.quantity);
+        if (itemProduct) {
+          const newStock = Number(itemProduct.current_stock) + Number(item.quantity);
           await supabase
             .from('products')
             .update({ current_stock: newStock })
-            .eq('id', qcRecord.product_id);
+            .eq('id', item.product_id);
 
-          // Record inventory transaction
           await supabase.from('inventory_transactions').insert({
-            product_id: qcRecord.product_id,
+            product_id: item.product_id,
             transaction_type: 'in' as const,
-            quantity: qcRecord.quantity,
+            quantity: item.quantity,
             reference_type: 'quality_control',
             reference_id: qcId,
             notes: `QC Accepted for MO ${mo.mo_number}`,
           });
         }
+      }
+
+      // Update sales order to "completed" status if linked
+      if (mo.sales_order_id) {
+        await supabase
+          .from('sales_orders')
+          .update({ status: 'completed' })
+          .eq('id', mo.sales_order_id);
       }
 
       return qcRecord;
@@ -196,6 +233,7 @@ export function useAcceptQualityControl() {
       queryClient.invalidateQueries({ queryKey: ['manufacturing_orders'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['product-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['sales_orders'] });
       toast.success('QC Accepted - Stock updated');
     },
     onError: (error) => {
