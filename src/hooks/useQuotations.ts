@@ -217,6 +217,122 @@ export function useCreateQuotation() {
   });
 }
 
+export function useUpdateQuotation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: {
+      id: string;
+      customer_name: string;
+      customer_email?: string;
+      customer_phone?: string;
+      valid_from: string;
+      valid_until: string;
+      discount_percent?: number;
+      tax_percent?: number;
+      notes?: string;
+      items: {
+        id?: string;
+        product_id?: string;
+        description: string;
+        quantity: number;
+        unit_price: number;
+      }[];
+    }) => {
+      // Get current quotation for edit history
+      const { data: currentQuotation } = await supabase
+        .from('quotations')
+        .select('*')
+        .eq('id', input.id)
+        .single();
+
+      const subtotal = input.items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+      const discountAmount = subtotal * (input.discount_percent || 0) / 100;
+      const taxableAmount = subtotal - discountAmount;
+      const taxAmount = taxableAmount * (input.tax_percent || 0) / 100;
+      const total = taxableAmount + taxAmount;
+
+      // Track changes
+      const changes: Record<string, any> = {};
+      const previousValues: Record<string, any> = {};
+
+      if (currentQuotation) {
+        if (currentQuotation.customer_name !== input.customer_name) {
+          changes.customer_name = input.customer_name;
+          previousValues.customer_name = currentQuotation.customer_name;
+        }
+        if (currentQuotation.discount_percent !== input.discount_percent) {
+          changes.discount_percent = input.discount_percent;
+          previousValues.discount_percent = currentQuotation.discount_percent;
+        }
+        if (currentQuotation.tax_percent !== input.tax_percent) {
+          changes.tax_percent = input.tax_percent;
+          previousValues.tax_percent = currentQuotation.tax_percent;
+        }
+        if (currentQuotation.total !== total) {
+          changes.total = total;
+          previousValues.total = currentQuotation.total;
+        }
+      }
+
+      // Update quotation
+      const { data: quotation, error: quotationError } = await supabase
+        .from('quotations')
+        .update({
+          customer_name: input.customer_name,
+          customer_email: input.customer_email,
+          customer_phone: input.customer_phone,
+          valid_from: input.valid_from,
+          valid_until: input.valid_until,
+          discount_percent: input.discount_percent || 0,
+          tax_percent: input.tax_percent || 0,
+          subtotal,
+          total,
+          notes: input.notes,
+          edit_count: (currentQuotation?.edit_count || 0) + 1,
+        })
+        .eq('id', input.id)
+        .select()
+        .single();
+
+      if (quotationError) throw quotationError;
+
+      // Record edit history
+      if (Object.keys(changes).length > 0) {
+        await supabase.from('quotation_edit_history').insert({
+          quotation_id: input.id,
+          changes,
+          previous_values: previousValues,
+        });
+      }
+
+      // Delete existing items and insert new ones
+      await supabase.from('quotation_items').delete().eq('quotation_id', input.id);
+
+      const itemsToInsert = input.items.map(item => ({
+        quotation_id: input.id,
+        product_id: item.product_id,
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total: item.quantity * item.unit_price,
+      }));
+
+      await supabase.from('quotation_items').insert(itemsToInsert);
+
+      return quotation;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quotations'] });
+      queryClient.invalidateQueries({ queryKey: ['quotation_items'] });
+      toast.success('Quotation updated successfully');
+    },
+    onError: (error) => {
+      toast.error(`Failed to update quotation: ${error.message}`);
+    },
+  });
+}
+
 export function useUpdateQuotationStatus() {
   const queryClient = useQueryClient();
 
@@ -231,19 +347,53 @@ export function useUpdateQuotationStatus() {
 
       if (error) throw error;
 
-      // If status is accepted and createMO is true, create a single MO with all product items
-      if (status === 'accepted' && createMO) {
+      // If status is accepted, always create sales order and optionally create MO
+      if (status === 'accepted') {
+        // Create sales order automatically
+        const order_number = await generateOrderNumber();
+
+        const { data: salesOrder, error: soError } = await supabase
+          .from('sales_orders')
+          .insert({
+            order_number,
+            quotation_id: id,
+            customer_id: data.customer_id,
+            customer_name: data.customer_name,
+            subtotal: data.subtotal,
+            discount_percent: data.discount_percent,
+            tax_percent: data.tax_percent,
+            total: data.total,
+            notes: data.notes,
+          })
+          .select()
+          .single();
+
+        if (soError) throw soError;
+
+        // Get quotation items
         const { data: quotationItems } = await supabase
           .from('quotation_items')
-          .select('*, product:products(id, name)')
+          .select('*, product:products(id, name, current_stock)')
           .eq('quotation_id', id);
 
         if (quotationItems && quotationItems.length > 0) {
-          // Get only items with products
           const productItems = quotationItems.filter(item => item.product_id);
           
-          if (productItems.length > 0) {
-            // Create one MO with the first product as primary
+          // Check if all products have sufficient inventory
+          const allInStock = productItems.every(item => {
+            const product = item.product as { current_stock: number } | null;
+            return product && Number(product.current_stock) >= Number(item.quantity);
+          });
+
+          if (allInStock && productItems.length > 0) {
+            // Don't create MO - items can be fulfilled from inventory
+            // Update sales order to ready status
+            await supabase
+              .from('sales_orders')
+              .update({ status: 'confirmed' })
+              .eq('id', salesOrder.id);
+          } else if (createMO && productItems.length > 0) {
+            // Create MO for items not in stock
             const mo_number = await generateMONumber();
             const firstItem = productItems[0];
             
@@ -255,6 +405,7 @@ export function useUpdateQuotationStatus() {
                 quantity: firstItem.quantity,
                 priority: 'normal',
                 quotation_id: id,
+                sales_order_id: salesOrder.id,
                 notes: `Auto-created from quotation ${data.quotation_number}`,
               })
               .select()
@@ -262,7 +413,6 @@ export function useUpdateQuotationStatus() {
 
             if (moError) throw moError;
 
-            // If there are more items, add them as mo_items
             if (productItems.length > 1) {
               const additionalItems = productItems.slice(1).map(item => ({
                 mo_id: moData.id,
@@ -275,7 +425,13 @@ export function useUpdateQuotationStatus() {
               await supabase.from('mo_items').insert(additionalItems);
             }
 
-            // Update product assignments status to in_production
+            // Create product assignments
+            await createProductAssignments(id, productItems.map(item => ({
+              product_id: item.product_id,
+              quantity: item.quantity,
+            })));
+
+            // Update assignments with MO id
             await supabase
               .from('product_assignments')
               .update({ status: 'in_production', mo_id: moData.id })
@@ -288,12 +444,13 @@ export function useUpdateQuotationStatus() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['quotations'] });
+      queryClient.invalidateQueries({ queryKey: ['sales_orders'] });
       queryClient.invalidateQueries({ queryKey: ['product-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
-      if (variables.status === 'accepted' && variables.createMO) {
+      if (variables.status === 'accepted') {
         queryClient.invalidateQueries({ queryKey: ['manufacturing_orders'] });
         queryClient.invalidateQueries({ queryKey: ['mo-items'] });
-        toast.success('Quotation accepted and Manufacturing Order created with all items');
+        toast.success('Quotation accepted and Sales Order created');
       } else {
         toast.success('Quotation status updated');
       }
@@ -302,6 +459,18 @@ export function useUpdateQuotationStatus() {
       toast.error(`Failed to update status: ${error.message}`);
     },
   });
+}
+
+async function generateOrderNumber() {
+  const { data } = await supabase
+    .from('sales_orders')
+    .select('order_number')
+    .order('created_at', { ascending: false })
+    .limit(1);
+  
+  const lastNum = data?.[0]?.order_number;
+  const nextNum = lastNum ? parseInt(lastNum.replace('SO-', '')) + 1 : 1;
+  return `SO-${String(nextNum).padStart(5, '0')}`;
 }
 
 export function useDeleteQuotation() {
@@ -346,68 +515,4 @@ export function useDeleteQuotation() {
   });
 }
 
-async function generateOrderNumber() {
-  const { data } = await supabase
-    .from('sales_orders')
-    .select('order_number')
-    .order('created_at', { ascending: false })
-    .limit(1);
-  
-  const lastNum = data?.[0]?.order_number;
-  const nextNum = lastNum ? parseInt(lastNum.replace('SO-', '')) + 1 : 1;
-  return `SO-${String(nextNum).padStart(5, '0')}`;
-}
-
-export function useConvertToSalesOrder() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (quotationId: string) => {
-      // Get quotation
-      const { data: quotation, error: qError } = await supabase
-        .from('quotations')
-        .select('*')
-        .eq('id', quotationId)
-        .single();
-
-      if (qError) throw qError;
-
-      const order_number = await generateOrderNumber();
-
-      // Create sales order
-      const { data: salesOrder, error: soError } = await supabase
-        .from('sales_orders')
-        .insert({
-          order_number,
-          quotation_id: quotationId,
-          customer_id: quotation.customer_id,
-          customer_name: quotation.customer_name,
-          subtotal: quotation.subtotal,
-          discount_percent: quotation.discount_percent,
-          tax_percent: quotation.tax_percent,
-          total: quotation.total,
-          notes: quotation.notes,
-        })
-        .select()
-        .single();
-
-      if (soError) throw soError;
-
-      // Update quotation status
-      await supabase
-        .from('quotations')
-        .update({ status: 'converted' })
-        .eq('id', quotationId);
-
-      return salesOrder;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['quotations'] });
-      queryClient.invalidateQueries({ queryKey: ['sales_orders'] });
-      toast.success('Quotation converted to Sales Order');
-    },
-    onError: (error) => {
-      toast.error(`Failed to convert: ${error.message}`);
-    },
-  });
-}
+// Convert to sales order function removed - sales order is now created automatically when quotation is accepted
