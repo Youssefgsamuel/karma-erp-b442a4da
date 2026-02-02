@@ -27,6 +27,28 @@ export function useMoItems(moId: string) {
   });
 }
 
+export function useAllMoItems(moIds: string[]) {
+  return useQuery({
+    queryKey: ['all-mo-items', moIds],
+    queryFn: async () => {
+      if (moIds.length === 0) return [];
+      
+      const { data, error } = await supabase
+        .from('mo_items')
+        .select(`
+          *,
+          product:products(*)
+        `)
+        .in('mo_id', moIds)
+        .order('created_at', { ascending: true });
+      
+      if (error) throw error;
+      return data as MoItemWithProduct[];
+    },
+    enabled: moIds.length > 0,
+  });
+}
+
 export interface CreateMoItemInput {
   mo_id: string;
   product_id: string;
