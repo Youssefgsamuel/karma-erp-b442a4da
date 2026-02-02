@@ -12,7 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Plus, MoreHorizontal, Play, CheckCircle, XCircle, Trash2, AlertTriangle, CheckCircle2, ListChecks } from 'lucide-react';
 import { toast } from 'sonner';
 import { useManufacturingOrders, useCreateManufacturingOrder, useUpdateManufacturingOrder, useDeleteManufacturingOrder, ManufacturingOrder } from '@/hooks/useManufacturingOrders';
-import { useMoItems, useCreateMoItems, useUpdateMoItemStatus, MoItemWithProduct } from '@/hooks/useMoItems';
+import { useMoItems, useAllMoItems, useCreateMoItems, useUpdateMoItemStatus, MoItemWithProduct } from '@/hooks/useMoItems';
 import { useProducts } from '@/hooks/useProducts';
 import { useBomAvailability } from '@/hooks/useBomAvailability';
 import { MoProductsDialog } from '@/components/manufacturing/MoProductsDialog';
@@ -87,18 +87,17 @@ export default function Manufacturing() {
     notes: '',
   });
 
-  // Fetch MO items for all visible MOs
-  const moIds = filteredOrders.map(mo => mo.id);
-  const allMoItemsQueries = moIds.map(id => useMoItems(id));
+  // Fetch all MO items in a single query
+  const { data: allMoItems = [] } = useAllMoItems(filteredOrders.map(mo => mo.id));
   
   // Create a map of MO ID to its items
   const moItemsMap = useMemo(() => {
     const map: Record<string, MoItemWithProduct[]> = {};
-    filteredOrders.forEach((mo, index) => {
-      map[mo.id] = allMoItemsQueries[index]?.data || [];
+    filteredOrders.forEach((mo) => {
+      map[mo.id] = allMoItems.filter(item => item.mo_id === mo.id);
     });
     return map;
-  }, [filteredOrders, allMoItemsQueries]);
+  }, [filteredOrders, allMoItems]);
 
   // Enrich orders with counts
   const orders: MOWithCounts[] = useMemo(() => {
