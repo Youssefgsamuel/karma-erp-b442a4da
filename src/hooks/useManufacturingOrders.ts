@@ -236,13 +236,29 @@ export function useUpdateManufacturingOrder() {
         updateData.status = 'under_qc';
         updateData.actual_end = new Date().toISOString();
 
-        // Create QC record
-        await supabase.from('quality_control_records').insert({
-          mo_id: id,
-          product_id: currentMO.product_id,
-          quantity: currentMO.quantity,
-          status: 'under_review',
-        });
+        // Fetch all mo_items for this MO
+        const { data: moItems } = await supabase
+          .from('mo_items')
+          .select('product_id, quantity')
+          .eq('mo_id', id);
+
+        // Create QC records for primary product + all mo_items
+        const qcRecords = [
+          {
+            mo_id: id,
+            product_id: currentMO.product_id,
+            quantity: currentMO.quantity,
+            status: 'under_review',
+          },
+          ...(moItems || []).map(item => ({
+            mo_id: id,
+            product_id: item.product_id,
+            quantity: item.quantity,
+            status: 'under_review',
+          })),
+        ];
+
+        await supabase.from('quality_control_records').insert(qcRecords);
       }
 
       const { data, error } = await supabase
