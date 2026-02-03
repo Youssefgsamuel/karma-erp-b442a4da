@@ -337,7 +337,12 @@ export function useUpdateQuotationStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, status, createMO = false }: { id: string; status: Quotation['status']; createMO?: boolean }) => {
+    mutationFn: async ({ id, status, createMO = false, partialFulfillment = false }: { 
+      id: string; 
+      status: Quotation['status']; 
+      createMO?: boolean;
+      partialFulfillment?: boolean;
+    }) => {
       const { data, error } = await supabase
         .from('quotations')
         .update({ status })
@@ -379,21 +384,117 @@ export function useUpdateQuotationStatus() {
         if (quotationItems && quotationItems.length > 0) {
           const productItems = quotationItems.filter(item => item.product_id);
           
-          // Check if all products have sufficient inventory
-          const allInStock = productItems.every(item => {
+          // Check which items are in stock
+          const itemsInStock: typeof productItems = [];
+          const itemsNeedMO: typeof productItems = [];
+          
+          productItems.forEach(item => {
             const product = item.product as { current_stock: number } | null;
-            return product && Number(product.current_stock) >= Number(item.quantity);
+            if (product && Number(product.current_stock) >= Number(item.quantity)) {
+              itemsInStock.push(item);
+            } else {
+              itemsNeedMO.push(item);
+            }
           });
+
+          const allInStock = itemsNeedMO.length === 0;
 
           if (allInStock && productItems.length > 0) {
             // Don't create MO - items can be fulfilled from inventory
-            // Update sales order to ready status
+            // Deduct inventory for all items
+            for (const item of itemsInStock) {
+              const product = item.product as { current_stock: number };
+              const newStock = Number(product.current_stock) - Number(item.quantity);
+              await supabase
+                .from('products')
+                .update({ current_stock: newStock })
+                .eq('id', item.product_id);
+              
+              // Create inventory transaction
+              await supabase.from('inventory_transactions').insert({
+                product_id: item.product_id,
+                transaction_type: 'out',
+                quantity: item.quantity,
+                notes: `Fulfilled from inventory for SO ${order_number}`,
+                reference_type: 'sales_order',
+                reference_id: salesOrder.id,
+              });
+            }
+            
+            // Update sales order to ready to deliver status
             await supabase
               .from('sales_orders')
-              .update({ status: 'confirmed' })
+              .update({ status: 'ready_to_deliver' })
               .eq('id', salesOrder.id);
-          } else if (createMO && productItems.length > 0) {
+          } else if (partialFulfillment && itemsInStock.length > 0 && itemsNeedMO.length > 0) {
+            // Partial fulfillment: Deduct in-stock items, create MO for out-of-stock items
+            
+            // Deduct inventory for in-stock items
+            for (const item of itemsInStock) {
+              const product = item.product as { current_stock: number };
+              const newStock = Number(product.current_stock) - Number(item.quantity);
+              await supabase
+                .from('products')
+                .update({ current_stock: newStock })
+                .eq('id', item.product_id);
+              
+              await supabase.from('inventory_transactions').insert({
+                product_id: item.product_id,
+                transaction_type: 'out',
+                quantity: item.quantity,
+                notes: `Partial fulfillment from inventory for SO ${order_number}`,
+                reference_type: 'sales_order',
+                reference_id: salesOrder.id,
+              });
+            }
+            
             // Create MO for items not in stock
+            const mo_number = await generateMONumber();
+            const firstItem = itemsNeedMO[0];
+            
+            const { data: moData, error: moError } = await supabase
+              .from('manufacturing_orders')
+              .insert({
+                mo_number,
+                product_id: firstItem.product_id,
+                quantity: firstItem.quantity,
+                priority: 'normal',
+                quotation_id: id,
+                sales_order_id: salesOrder.id,
+                notes: `Auto-created from quotation ${data.quotation_number} (partial fulfillment - ${itemsInStock.length} items from inventory)`,
+              })
+              .select()
+              .single();
+
+            if (moError) throw moError;
+
+            if (itemsNeedMO.length > 1) {
+              const additionalItems = itemsNeedMO.slice(1).map(item => ({
+                mo_id: moData.id,
+                product_id: item.product_id,
+                quantity: item.quantity,
+                status: 'pending' as const,
+                notes: `From quotation ${data.quotation_number}`,
+              }));
+
+              await supabase.from('mo_items').insert(additionalItems);
+            }
+
+            // Create product assignments only for items needing MO
+            await createProductAssignments(id, itemsNeedMO.map(item => ({
+              product_id: item.product_id,
+              quantity: item.quantity,
+            })));
+
+            // Update assignments with MO id
+            await supabase
+              .from('product_assignments')
+              .update({ status: 'in_production', mo_id: moData.id })
+              .eq('quotation_id', id);
+              
+            // Sales order stays pending until MO is complete
+          } else if (createMO && productItems.length > 0) {
+            // Create MO for all items
             const mo_number = await generateMONumber();
             const firstItem = productItems[0];
             
@@ -447,10 +548,15 @@ export function useUpdateQuotationStatus() {
       queryClient.invalidateQueries({ queryKey: ['sales_orders'] });
       queryClient.invalidateQueries({ queryKey: ['product-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-transactions'] });
       if (variables.status === 'accepted') {
         queryClient.invalidateQueries({ queryKey: ['manufacturing_orders'] });
         queryClient.invalidateQueries({ queryKey: ['mo-items'] });
-        toast.success('Quotation accepted and Sales Order created');
+        if (variables.partialFulfillment) {
+          toast.success('Quotation accepted - in-stock items fulfilled, MO created for remaining items');
+        } else {
+          toast.success('Quotation accepted and Sales Order created');
+        }
       } else {
         toast.success('Quotation status updated');
       }

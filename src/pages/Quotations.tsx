@@ -254,10 +254,13 @@ export default function Quotations() {
           {q.status === 'sent' && (
             <>
               <DropdownMenuItem onClick={() => updateStatus.mutate({ id: q.id, status: 'accepted', createMO: true })}>
-                <Check className="mr-2 h-4 w-4" /> Accept & Create MO
+                <Check className="mr-2 h-4 w-4" /> Accept & Create MO (All Items)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: q.id, status: 'accepted', partialFulfillment: true })}>
+                <PackageCheck className="mr-2 h-4 w-4" /> Accept (Partial: Inventory + MO)
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => updateStatus.mutate({ id: q.id, status: 'accepted', createMO: false })}>
-                <PackageCheck className="mr-2 h-4 w-4" /> Accept (From Inventory)
+                <PackageCheck className="mr-2 h-4 w-4" /> Accept (From Inventory Only)
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => updateStatus.mutate({ id: q.id, status: 'rejected' })}>
                 <X className="mr-2 h-4 w-4" /> Mark Rejected
