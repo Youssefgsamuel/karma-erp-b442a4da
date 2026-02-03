@@ -81,6 +81,7 @@ export type Database = {
         Row: {
           address: string | null
           created_at: string
+          deleted_at: string | null
           email: string | null
           id: string
           is_active: boolean
@@ -91,6 +92,7 @@ export type Database = {
         Insert: {
           address?: string | null
           created_at?: string
+          deleted_at?: string | null
           email?: string | null
           id?: string
           is_active?: boolean
@@ -101,6 +103,7 @@ export type Database = {
         Update: {
           address?: string | null
           created_at?: string
+          deleted_at?: string | null
           email?: string | null
           id?: string
           is_active?: boolean
@@ -194,6 +197,7 @@ export type Database = {
           actual_start: string | null
           created_at: string
           created_by: string | null
+          deleted_at: string | null
           id: string
           mo_number: string
           notes: string | null
@@ -212,6 +216,7 @@ export type Database = {
           actual_start?: string | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           id?: string
           mo_number: string
           notes?: string | null
@@ -230,6 +235,7 @@ export type Database = {
           actual_start?: string | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           id?: string
           mo_number?: string
           notes?: string | null
@@ -459,6 +465,7 @@ export type Database = {
           cost_price: number
           created_at: string
           current_stock: number
+          deleted_at: string | null
           description: string | null
           id: string
           is_active: boolean
@@ -478,6 +485,7 @@ export type Database = {
           cost_price?: number
           created_at?: string
           current_stock?: number
+          deleted_at?: string | null
           description?: string | null
           id?: string
           is_active?: boolean
@@ -497,6 +505,7 @@ export type Database = {
           cost_price?: number
           created_at?: string
           current_stock?: number
+          deleted_at?: string | null
           description?: string | null
           id?: string
           is_active?: boolean
@@ -719,6 +728,7 @@ export type Database = {
           customer_id: string | null
           customer_name: string
           customer_phone: string | null
+          deleted_at: string | null
           discount_percent: number
           edit_count: number
           id: string
@@ -739,6 +749,7 @@ export type Database = {
           customer_id?: string | null
           customer_name: string
           customer_phone?: string | null
+          deleted_at?: string | null
           discount_percent?: number
           edit_count?: number
           id?: string
@@ -759,6 +770,7 @@ export type Database = {
           customer_id?: string | null
           customer_name?: string
           customer_phone?: string | null
+          deleted_at?: string | null
           discount_percent?: number
           edit_count?: number
           id?: string
@@ -809,6 +821,7 @@ export type Database = {
           cost_per_unit: number
           created_at: string
           current_stock: number
+          deleted_at: string | null
           description: string | null
           id: string
           is_for_sale: boolean
@@ -825,6 +838,7 @@ export type Database = {
           cost_per_unit?: number
           created_at?: string
           current_stock?: number
+          deleted_at?: string | null
           description?: string | null
           id?: string
           is_for_sale?: boolean
@@ -841,6 +855,7 @@ export type Database = {
           cost_per_unit?: number
           created_at?: string
           current_stock?: number
+          deleted_at?: string | null
           description?: string | null
           id?: string
           is_for_sale?: boolean
@@ -971,6 +986,7 @@ export type Database = {
           created_by: string | null
           customer_id: string | null
           customer_name: string
+          deleted_at: string | null
           discount_percent: number
           due_date: string | null
           id: string
@@ -989,6 +1005,7 @@ export type Database = {
           created_by?: string | null
           customer_id?: string | null
           customer_name: string
+          deleted_at?: string | null
           discount_percent?: number
           due_date?: string | null
           id?: string
@@ -1007,6 +1024,7 @@ export type Database = {
           created_by?: string | null
           customer_id?: string | null
           customer_name?: string
+          deleted_at?: string | null
           discount_percent?: number
           due_date?: string | null
           id?: string
@@ -1090,6 +1108,7 @@ export type Database = {
           address: string | null
           contact_person: string | null
           created_at: string
+          deleted_at: string | null
           email: string | null
           id: string
           is_active: boolean
@@ -1103,6 +1122,7 @@ export type Database = {
           address?: string | null
           contact_person?: string | null
           created_at?: string
+          deleted_at?: string | null
           email?: string | null
           id?: string
           is_active?: boolean
@@ -1116,6 +1136,7 @@ export type Database = {
           address?: string | null
           contact_person?: string | null
           created_at?: string
+          deleted_at?: string | null
           email?: string | null
           id?: string
           is_active?: boolean

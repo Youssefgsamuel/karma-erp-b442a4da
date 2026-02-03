@@ -3,13 +3,14 @@ import { PageHeader } from '@/components/ui/page-header';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Plus, MoreHorizontal, Play, CheckCircle, XCircle, Trash2, AlertTriangle, CheckCircle2, ListChecks } from 'lucide-react';
+import { Plus, MoreHorizontal, Play, CheckCircle, XCircle, Trash2, AlertTriangle, CheckCircle2, ListChecks, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useManufacturingOrders, useCreateManufacturingOrder, useUpdateManufacturingOrder, useDeleteManufacturingOrder, ManufacturingOrder } from '@/hooks/useManufacturingOrders';
 import { useMoItems, useAllMoItems, useCreateMoItems, useUpdateMoItemStatus, MoItemWithProduct } from '@/hooks/useMoItems';
@@ -19,6 +20,8 @@ import { MoProductsDialog } from '@/components/manufacturing/MoProductsDialog';
 import { MoQuantityDialog } from '@/components/manufacturing/MoQuantityDialog';
 import { format } from 'date-fns';
 import { formatNumber } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 const statusColors: Record<ManufacturingOrder['status'], string> = {
   planned: 'bg-muted text-muted-foreground',
@@ -54,15 +57,11 @@ interface MOWithCounts extends ManufacturingOrder {
   productCount: number;
   totalQuantity: number;
   moItems: MoItemWithProduct[];
+  quotation_number?: string;
 }
 
 export default function Manufacturing() {
   const { data: allOrders = [], isLoading } = useManufacturingOrders();
-  
-  // Filter out orders that have moved to QC workflow (under_qc, closed, qc_rejected)
-  const filteredOrders = allOrders.filter(mo => 
-    !['under_qc', 'closed', 'qc_rejected'].includes(mo.status)
-  );
   const { data: products = [] } = useProducts();
   const createMO = useCreateManufacturingOrder();
   const updateMO = useUpdateManufacturingOrder();
@@ -70,6 +69,7 @@ export default function Manufacturing() {
   const createMoItems = useCreateMoItems();
   const updateItemStatus = useUpdateMoItemStatus();
 
+  const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isItemsDialogOpen, setIsItemsDialogOpen] = useState(false);
   const [selectedMO, setSelectedMO] = useState<MOWithCounts | null>(null);
@@ -78,7 +78,7 @@ export default function Manufacturing() {
   const [productsDialogMO, setProductsDialogMO] = useState<MOWithCounts | null>(null);
   const [quantityDialogMO, setQuantityDialogMO] = useState<MOWithCounts | null>(null);
   
-  // All items form state (no primary product)
+  // All items form state
   const [moItems, setMoItems] = useState<MoItemLine[]>([{ product_id: '', quantity: 1, notes: '' }]);
   const [formData, setFormData] = useState({
     priority: 'normal' as ManufacturingOrder['priority'],
@@ -87,34 +87,65 @@ export default function Manufacturing() {
     notes: '',
   });
 
+  // Fetch quotation numbers for MOs with quotation_id
+  const quotationIds = allOrders.filter(mo => mo.quotation_id).map(mo => mo.quotation_id!);
+  const { data: quotations = [] } = useQuery({
+    queryKey: ['quotations-for-mo', quotationIds],
+    queryFn: async () => {
+      if (quotationIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from('quotations')
+        .select('id, quotation_number')
+        .in('id', quotationIds);
+      if (error) throw error;
+      return data;
+    },
+    enabled: quotationIds.length > 0,
+  });
+
+  const quotationMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    quotations.forEach(q => { map[q.id] = q.quotation_number; });
+    return map;
+  }, [quotations]);
+
+  // Separate active and completed orders
+  const activeOrders = allOrders.filter(mo => 
+    !['completed', 'under_qc', 'closed', 'qc_rejected', 'cancelled'].includes(mo.status)
+  );
+  const completedOrders = allOrders.filter(mo => 
+    ['completed', 'under_qc', 'closed', 'qc_rejected', 'cancelled'].includes(mo.status)
+  );
+
+  const displayOrders = activeTab === 'active' ? activeOrders : completedOrders;
+
   // Fetch all MO items in a single query
-  const { data: allMoItems = [] } = useAllMoItems(filteredOrders.map(mo => mo.id));
+  const { data: allMoItems = [] } = useAllMoItems(displayOrders.map(mo => mo.id));
   
   // Create a map of MO ID to its items
   const moItemsMap = useMemo(() => {
     const map: Record<string, MoItemWithProduct[]> = {};
-    filteredOrders.forEach((mo) => {
+    displayOrders.forEach((mo) => {
       map[mo.id] = allMoItems.filter(item => item.mo_id === mo.id);
     });
     return map;
-  }, [filteredOrders, allMoItems]);
+  }, [displayOrders, allMoItems]);
 
   // Enrich orders with counts
   const orders: MOWithCounts[] = useMemo(() => {
-    return filteredOrders.map(mo => {
+    return displayOrders.map(mo => {
       const items = moItemsMap[mo.id] || [];
-      // Primary product counts as 1, plus all mo_items
       const productCount = 1 + items.length;
-      // Sum of primary quantity + all item quantities
       const totalQuantity = Number(mo.quantity) + items.reduce((sum, item) => sum + Number(item.quantity), 0);
       return {
         ...mo,
         productCount,
         totalQuantity,
         moItems: items,
+        quotation_number: mo.quotation_id ? quotationMap[mo.quotation_id] : undefined,
       };
     });
-  }, [filteredOrders, moItemsMap]);
+  }, [displayOrders, moItemsMap, quotationMap]);
 
   // Fetch MO items for selected MO
   const { data: selectedMoItems = [] } = useMoItems(selectedMO?.id || '');
@@ -149,17 +180,14 @@ export default function Manufacturing() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Filter valid items
     const validItems = moItems.filter(item => item.product_id && item.quantity > 0);
     if (validItems.length === 0) {
       toast.error('Please add at least one product');
       return;
     }
 
-    // Use first item as the MO's primary product
     const firstItem = validItems[0];
     
-    // Create the MO with the first product
     const moData = await createMO.mutateAsync({
       product_id: firstItem.product_id,
       quantity: firstItem.quantity,
@@ -169,7 +197,6 @@ export default function Manufacturing() {
       notes: formData.notes,
     });
 
-    // If there are additional items, create them as mo_items
     if (validItems.length > 1 && moData?.id) {
       await createMoItems.mutateAsync(
         validItems.slice(1).map(item => ({
@@ -200,72 +227,84 @@ export default function Manufacturing() {
     });
   };
 
-  const columns: Column<MOWithCounts>[] = [
-    { key: 'mo_number', header: 'MO Number', cell: (mo) => (
-      <button
-        className="font-medium hover:underline cursor-pointer text-left"
-        onClick={() => handleViewItems(mo)}
-      >
-        {mo.mo_number}
-      </button>
-    )},
-    { key: 'products', header: 'Products', cell: (mo) => (
-      <button
-        className="font-medium text-primary hover:underline cursor-pointer"
-        onClick={() => setProductsDialogMO(mo)}
-      >
-        {mo.productCount} {mo.productCount === 1 ? 'product' : 'products'}
-      </button>
-    )},
-    { key: 'quantity', header: 'Total Qty', cell: (mo) => (
-      <button
-        className="font-medium text-primary hover:underline cursor-pointer"
-        onClick={() => setQuantityDialogMO(mo)}
-      >
-        {formatNumber(mo.totalQuantity)}
-      </button>
-    )},
-    { key: 'status', header: 'Status', cell: (mo) => (
-      <Badge className={statusColors[mo.status]}>{mo.status.replace('_', ' ')}</Badge>
-    )},
-    { key: 'priority', header: 'Priority', cell: (mo) => (
-      <Badge className={priorityColors[mo.priority]}>{mo.priority}</Badge>
-    )},
-    { key: 'planned_start', header: 'Planned Start', cell: (mo) => mo.planned_start ? format(new Date(mo.planned_start), 'MMM d, yyyy') : '-' },
-    { key: 'planned_end', header: 'Planned End', cell: (mo) => mo.planned_end ? format(new Date(mo.planned_end), 'MMM d, yyyy') : '-' },
-    { key: 'actions', header: '', cell: (mo) => (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => handleViewItems(mo)}>
-            <ListChecks className="mr-2 h-4 w-4" /> View Items
-          </DropdownMenuItem>
-          {mo.status === 'planned' && (
-            <DropdownMenuItem onClick={() => updateMO.mutate({ id: mo.id, status: 'in_progress' })}>
-              <Play className="mr-2 h-4 w-4" /> Start Production
+  const getColumns = (): Column<MOWithCounts>[] => {
+    const baseColumns: Column<MOWithCounts>[] = [
+      { key: 'mo_number', header: 'MO Number', cell: (mo) => (
+        <button
+          className="font-medium hover:underline cursor-pointer text-left"
+          onClick={() => handleViewItems(mo)}
+        >
+          {mo.mo_number}
+        </button>
+      )},
+      { key: 'quotation', header: 'Quotation', cell: (mo) => mo.quotation_number ? (
+        <Badge variant="outline">{mo.quotation_number}</Badge>
+      ) : (
+        <span className="text-muted-foreground">-</span>
+      )},
+      { key: 'products', header: 'Products', cell: (mo) => (
+        <button
+          className="font-medium text-primary hover:underline cursor-pointer"
+          onClick={() => setProductsDialogMO(mo)}
+        >
+          {mo.productCount} {mo.productCount === 1 ? 'product' : 'products'}
+        </button>
+      )},
+      { key: 'quantity', header: 'Total Qty', cell: (mo) => (
+        <button
+          className="font-medium text-primary hover:underline cursor-pointer"
+          onClick={() => setQuantityDialogMO(mo)}
+        >
+          {formatNumber(mo.totalQuantity)}
+        </button>
+      )},
+      { key: 'status', header: 'Status', cell: (mo) => (
+        <Badge className={statusColors[mo.status]}>{mo.status.replace('_', ' ')}</Badge>
+      )},
+      { key: 'priority', header: 'Priority', cell: (mo) => (
+        <Badge className={priorityColors[mo.priority]}>{mo.priority}</Badge>
+      )},
+      { key: 'planned_start', header: 'Planned Start', cell: (mo) => mo.planned_start ? format(new Date(mo.planned_start), 'MMM d, yyyy') : '-' },
+      { key: 'planned_end', header: 'Planned End', cell: (mo) => mo.planned_end ? format(new Date(mo.planned_end), 'MMM d, yyyy') : '-' },
+    ];
+
+    if (activeTab === 'active') {
+      baseColumns.push({ key: 'actions', header: '', cell: (mo) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleViewItems(mo)}>
+              <ListChecks className="mr-2 h-4 w-4" /> View Items
             </DropdownMenuItem>
-          )}
-          {mo.status === 'in_progress' && (
-            <DropdownMenuItem onClick={() => updateMO.mutate({ id: mo.id, status: 'completed' })}>
-              <CheckCircle className="mr-2 h-4 w-4" /> Mark Complete (Send to QC)
-            </DropdownMenuItem>
-          )}
-          {(mo.status === 'planned' || mo.status === 'in_progress') && (
-            <DropdownMenuItem onClick={() => updateMO.mutate({ id: mo.id, status: 'cancelled' })} className="text-destructive">
-              <XCircle className="mr-2 h-4 w-4" /> Cancel
-            </DropdownMenuItem>
-          )}
-          {(mo.status === 'planned' || mo.status === 'cancelled' || mo.status === 'qc_rejected') && (
-            <DropdownMenuItem onClick={() => deleteMO.mutate(mo.id)} className="text-destructive">
-              <Trash2 className="mr-2 h-4 w-4" /> Delete
-            </DropdownMenuItem>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    )},
-  ];
+            {mo.status === 'planned' && (
+              <DropdownMenuItem onClick={() => updateMO.mutate({ id: mo.id, status: 'in_progress' })}>
+                <Play className="mr-2 h-4 w-4" /> Start Production
+              </DropdownMenuItem>
+            )}
+            {mo.status === 'in_progress' && (
+              <DropdownMenuItem onClick={() => updateMO.mutate({ id: mo.id, status: 'completed' })}>
+                <CheckCircle className="mr-2 h-4 w-4" /> Mark Complete (Send to QC)
+              </DropdownMenuItem>
+            )}
+            {(mo.status === 'planned' || mo.status === 'in_progress') && (
+              <DropdownMenuItem onClick={() => updateMO.mutate({ id: mo.id, status: 'cancelled' })} className="text-destructive">
+                <XCircle className="mr-2 h-4 w-4" /> Cancel
+              </DropdownMenuItem>
+            )}
+            {(mo.status === 'planned' || mo.status === 'cancelled') && (
+              <DropdownMenuItem onClick={() => deleteMO.mutate(mo.id)} className="text-destructive">
+                <Trash2 className="mr-2 h-4 w-4" /> Delete
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )});
+    }
+
+    return baseColumns;
+  };
 
   return (
     <div className="animate-fade-in">
@@ -279,13 +318,25 @@ export default function Manufacturing() {
         }
       />
 
-      <DataTable
-        columns={columns}
-        data={orders}
-        keyExtractor={(mo) => mo.id}
-        isLoading={isLoading}
-        emptyMessage="No manufacturing orders yet. Create your first MO."
-      />
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'active' | 'completed')}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="active">Active ({activeOrders.length})</TabsTrigger>
+          <TabsTrigger value="completed">Completed/Closed ({completedOrders.length})</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value={activeTab}>
+          <DataTable
+            columns={getColumns()}
+            data={orders}
+            keyExtractor={(mo) => mo.id}
+            isLoading={isLoading}
+            emptyMessage={activeTab === 'active' 
+              ? "No active manufacturing orders. Create your first MO."
+              : "No completed orders yet."
+            }
+          />
+        </TabsContent>
+      </Tabs>
 
       {/* Create MO Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -295,7 +346,6 @@ export default function Manufacturing() {
             <DialogDescription>Create a new manufacturing order with one or more products.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* All Items */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Products *</Label>
@@ -419,17 +469,12 @@ export default function Manufacturing() {
                     ))}
                   </div>
                 )}
-                {!bomAvailability.has_bom && (
-                  <p className="text-sm text-muted-foreground">
-                    No Bill of Materials defined for this product. Add materials in the BOM page.
-                  </p>
-                )}
               </div>
             )}
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={createMO.isPending || !firstItemProductId}>
+              <Button type="submit" disabled={createMO.isPending || createMoItems.isPending}>
                 {createMO.isPending ? 'Creating...' : 'Create MO'}
               </Button>
             </DialogFooter>
@@ -439,98 +484,91 @@ export default function Manufacturing() {
 
       {/* MO Items Dialog */}
       <Dialog open={isItemsDialogOpen} onOpenChange={setIsItemsDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>MO Items - {selectedMO?.mo_number}</DialogTitle>
             <DialogDescription>
-              View and manage all items in this manufacturing order. All products have equal priority.
+              Manage individual item status for this manufacturing order.
             </DialogDescription>
           </DialogHeader>
-
+          
           {selectedMO && (
             <div className="space-y-4">
-              {/* All Items - including the "primary" which is just the first item */}
-              <div className="space-y-2">
-                <Label>Items ({1 + selectedMoItems.length})</Label>
-                <div className="space-y-2">
-                  {/* First item (from MO itself) */}
-                  <div className="rounded-lg border p-3 flex items-center justify-between">
-                    <div className="flex-1">
-                      <p className="font-medium">{selectedMO.product?.name || 'Unknown Product'}</p>
-                      <p className="text-sm text-muted-foreground">Quantity: {selectedMO.quantity}</p>
-                    </div>
-                    <Badge className={statusColors[selectedMO.status]}>
-                      {selectedMO.status.replace('_', ' ')}
-                    </Badge>
+              {/* Primary Product */}
+              <div className="p-4 rounded-lg border bg-card">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{selectedMO.product?.name}</p>
+                    <p className="text-sm text-muted-foreground">{selectedMO.product?.sku}</p>
                   </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm">Qty: {formatNumber(selectedMO.quantity)}</span>
+                    <Badge className={statusColors[selectedMO.status]}>Primary</Badge>
+                  </div>
+                </div>
+              </div>
 
-                  {/* Additional items */}
-                  {selectedMoItems.map((item) => (
-                    <div key={item.id} className="rounded-lg border p-3 flex items-center justify-between">
-                      <div className="flex-1">
-                        <p className="font-medium">{item.product?.name || 'Unknown Product'}</p>
-                        <p className="text-sm text-muted-foreground">Quantity: {item.quantity}</p>
-                        {item.notes && <p className="text-xs text-muted-foreground">{item.notes}</p>}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge className={itemStatusColors[item.status]}>
-                          {item.status}
-                        </Badge>
-                        {selectedMO.status === 'in_progress' && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              {item.status !== 'in_progress' && (
-                                <DropdownMenuItem onClick={() => handleItemStatusChange(item, 'in_progress')}>
-                                  <Play className="mr-2 h-4 w-4" /> Start
-                                </DropdownMenuItem>
-                              )}
-                              {item.status !== 'completed' && (
-                                <DropdownMenuItem onClick={() => handleItemStatusChange(item, 'completed')}>
-                                  <CheckCircle className="mr-2 h-4 w-4" /> Mark Complete
-                                </DropdownMenuItem>
-                              )}
-                              {item.status !== 'pending' && (
-                                <DropdownMenuItem onClick={() => handleItemStatusChange(item, 'pending')}>
-                                  Reset to Pending
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
+              {/* Additional Items */}
+              {selectedMoItems.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-muted-foreground">Additional Items</h4>
+                  {selectedMoItems.map(item => (
+                    <div key={item.id} className="p-4 rounded-lg border bg-card">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">{item.product?.name}</p>
+                          <p className="text-sm text-muted-foreground">{item.product?.sku}</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="text-sm">Qty: {formatNumber(item.quantity)}</span>
+                          <Select 
+                            value={item.status} 
+                            onValueChange={(v) => handleItemStatusChange(item, v as any)}
+                            disabled={updateItemStatus.isPending}
+                          >
+                            <SelectTrigger className="w-[130px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pending">Pending</SelectItem>
+                              <SelectItem value="in_progress">In Progress</SelectItem>
+                              <SelectItem value="completed">Completed</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
+              )}
             </div>
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsItemsDialogOpen(false)}>Close</Button>
+            <Button onClick={() => setIsItemsDialogOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Products Dialog */}
-      <MoProductsDialog
-        open={!!productsDialogMO}
-        onOpenChange={(open) => !open && setProductsDialogMO(null)}
-        mo={productsDialogMO}
-        items={productsDialogMO?.moItems || []}
-      />
+      {productsDialogMO && (
+        <MoProductsDialog
+          open={!!productsDialogMO}
+          onOpenChange={(open) => !open && setProductsDialogMO(null)}
+          mo={productsDialogMO}
+          items={productsDialogMO.moItems}
+        />
+      )}
 
       {/* Quantity Dialog */}
-      <MoQuantityDialog
-        open={!!quantityDialogMO}
-        onOpenChange={(open) => !open && setQuantityDialogMO(null)}
-        mo={quantityDialogMO}
-        items={quantityDialogMO?.moItems || []}
-      />
+      {quantityDialogMO && (
+        <MoQuantityDialog
+          open={!!quantityDialogMO}
+          onOpenChange={(open) => !open && setQuantityDialogMO(null)}
+          mo={quantityDialogMO}
+          items={quantityDialogMO.moItems}
+        />
+      )}
     </div>
   );
 }

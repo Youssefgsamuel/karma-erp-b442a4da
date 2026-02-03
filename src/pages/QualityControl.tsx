@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, CheckCircle, XCircle, ClipboardCheck, AlertCircle } from 'lucide-react';
+import { MoreHorizontal, CheckCircle, XCircle, ClipboardCheck, AlertCircle, History } from 'lucide-react';
 import {
   useQualityControlRecords,
   useQualityControlCounts,
@@ -16,6 +16,7 @@ import {
   useRejectQualityControl,
   QualityControlRecord,
 } from '@/hooks/useQualityControl';
+import { QCHistoryDialog } from '@/components/qc/QCHistoryDialog';
 import { format } from 'date-fns';
 import { formatNumber } from '@/lib/utils';
 
@@ -32,6 +33,7 @@ export default function QualityControl() {
   const [selectedQc, setSelectedQc] = useState<QualityControlRecord | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [acceptNotes, setAcceptNotes] = useState('');
+  const [historyDialog, setHistoryDialog] = useState<{ moId: string; moNumber: string } | null>(null);
 
   const filter = activeTab === 'all' ? undefined : activeTab;
   const { data: records = [], isLoading } = useQualityControlRecords(filter);
@@ -69,7 +71,17 @@ export default function QualityControl() {
     {
       key: 'mo_number',
       header: 'MO Number',
-      cell: (qc) => <span className="font-medium">{qc.manufacturing_order?.mo_number || '-'}</span>,
+      cell: (qc) => (
+        <button
+          className="font-medium text-primary hover:underline cursor-pointer"
+          onClick={() => qc.manufacturing_order && setHistoryDialog({ 
+            moId: qc.mo_id, 
+            moNumber: qc.manufacturing_order.mo_number 
+          })}
+        >
+          {qc.manufacturing_order?.mo_number || '-'}
+        </button>
+      ),
     },
     {
       key: 'product',
@@ -113,7 +125,7 @@ export default function QualityControl() {
     {
       key: 'actions',
       header: '',
-      cell: (qc) => qc.status === 'under_review' && (
+      cell: (qc) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon">
@@ -121,14 +133,25 @@ export default function QualityControl() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => openAcceptDialog(qc)}>
-              <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
-              Accept
+            <DropdownMenuItem onClick={() => qc.manufacturing_order && setHistoryDialog({ 
+              moId: qc.mo_id, 
+              moNumber: qc.manufacturing_order.mo_number 
+            })}>
+              <History className="mr-2 h-4 w-4" />
+              View MO History
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => openRejectDialog(qc)} className="text-destructive">
-              <XCircle className="mr-2 h-4 w-4" />
-              Reject
-            </DropdownMenuItem>
+            {qc.status === 'under_review' && (
+              <>
+                <DropdownMenuItem onClick={() => openAcceptDialog(qc)}>
+                  <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
+                  Accept
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => openRejectDialog(qc)} className="text-destructive">
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Reject
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       ),
@@ -266,6 +289,16 @@ export default function QualityControl() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* QC History Dialog */}
+      {historyDialog && (
+        <QCHistoryDialog
+          open={!!historyDialog}
+          onOpenChange={(open) => !open && setHistoryDialog(null)}
+          moId={historyDialog.moId}
+          moNumber={historyDialog.moNumber}
+        />
+      )}
     </div>
   );
 }

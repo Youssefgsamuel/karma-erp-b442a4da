@@ -1,15 +1,17 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { MoreHorizontal, Trash2, Package, CheckCircle, Clock, XCircle, ShoppingCart } from 'lucide-react';
+import { MoreHorizontal, Trash2, Package, CheckCircle, Clock, XCircle, ShoppingCart, RotateCcw } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { SalesFilters } from '@/components/sales/SalesFilters';
 
 interface SalesOrder {
   id: string;
@@ -17,7 +19,7 @@ interface SalesOrder {
   quotation_id: string | null;
   customer_id: string | null;
   customer_name: string;
-  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'confirmed' | 'ready_to_deliver';
   order_date: string;
   due_date: string | null;
   subtotal: number;
@@ -26,6 +28,7 @@ interface SalesOrder {
   total: number;
   notes: string | null;
   created_at: string;
+  deleted_at: string | null;
 }
 
 const statusColors: Record<SalesOrder['status'], string> = {
@@ -34,6 +37,8 @@ const statusColors: Record<SalesOrder['status'], string> = {
   shipped: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
   delivered: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
   cancelled: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  confirmed: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200',
+  ready_to_deliver: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200',
 };
 
 const statusIcons: Record<SalesOrder['status'], React.ReactNode> = {
@@ -42,17 +47,26 @@ const statusIcons: Record<SalesOrder['status'], React.ReactNode> = {
   shipped: <ShoppingCart className="h-3 w-3" />,
   delivered: <CheckCircle className="h-3 w-3" />,
   cancelled: <XCircle className="h-3 w-3" />,
+  confirmed: <CheckCircle className="h-3 w-3" />,
+  ready_to_deliver: <Package className="h-3 w-3" />,
 };
 
-function useSalesOrders() {
+function useSalesOrders(includeDeleted = false) {
   return useQuery({
-    queryKey: ['sales_orders'],
+    queryKey: ['sales_orders', { includeDeleted }],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('sales_orders')
         .select('*')
         .order('created_at', { ascending: false });
-      
+
+      if (includeDeleted) {
+        query = query.not('deleted_at', 'is', null);
+      } else {
+        query = query.is('deleted_at', null);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data as SalesOrder[];
     },
@@ -84,7 +98,51 @@ function useUpdateSalesOrderStatus() {
   });
 }
 
-function useDeleteSalesOrder() {
+function useSoftDeleteSalesOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('sales_orders')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sales_orders'] });
+      toast.success('Sales order moved to recycle bin');
+    },
+    onError: (error) => {
+      toast.error(`Failed to delete order: ${error.message}`);
+    },
+  });
+}
+
+function useRestoreSalesOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('sales_orders')
+        .update({ deleted_at: null })
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sales_orders'] });
+      toast.success('Sales order restored');
+    },
+    onError: (error) => {
+      toast.error(`Failed to restore order: ${error.message}`);
+    },
+  });
+}
+
+function usePermanentDeleteSalesOrder() {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -98,7 +156,7 @@ function useDeleteSalesOrder() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sales_orders'] });
-      toast.success('Sales order deleted');
+      toast.success('Sales order permanently deleted');
     },
     onError: (error) => {
       toast.error(`Failed to delete order: ${error.message}`);
@@ -107,10 +165,31 @@ function useDeleteSalesOrder() {
 }
 
 export default function Sales() {
-  const { data: orders = [], isLoading } = useSalesOrders();
+  const [activeTab, setActiveTab] = useState<'active' | 'recycled'>('active');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [monthFilter, setMonthFilter] = useState('all');
+  
+  const { data: orders = [], isLoading } = useSalesOrders(activeTab === 'recycled');
   const updateStatus = useUpdateSalesOrderStatus();
-  const deleteOrder = useDeleteSalesOrder();
+  const softDelete = useSoftDeleteSalesOrder();
+  const restore = useRestoreSalesOrder();
+  const permanentDelete = usePermanentDeleteSalesOrder();
   const [deleteConfirm, setDeleteConfirm] = useState<SalesOrder | null>(null);
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter(order => {
+      // Status filter
+      if (statusFilter !== 'all' && order.status !== statusFilter) return false;
+      
+      // Month filter
+      if (monthFilter !== 'all') {
+        const orderMonth = new Date(order.order_date).getMonth();
+        if (orderMonth !== parseInt(monthFilter)) return false;
+      }
+      
+      return true;
+    });
+  }, [orders, statusFilter, monthFilter]);
 
   const columns: Column<SalesOrder>[] = [
     { 
@@ -129,7 +208,7 @@ export default function Sales() {
       cell: (order) => (
         <Badge className={`${statusColors[order.status]} flex items-center gap-1 w-fit`}>
           {statusIcons[order.status]}
-          {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+          {order.status.replace(/_/g, ' ').charAt(0).toUpperCase() + order.status.replace(/_/g, ' ').slice(1)}
         </Badge>
       )
     },
@@ -151,7 +230,20 @@ export default function Sales() {
     { 
       key: 'actions', 
       header: '', 
-      cell: (order) => (
+      cell: (order) => activeTab === 'recycled' ? (
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => restore.mutate(order.id)}>
+            <RotateCcw className="mr-1 h-3 w-3" /> Restore
+          </Button>
+          <Button 
+            variant="destructive" 
+            size="sm" 
+            onClick={() => setDeleteConfirm(order)}
+          >
+            <Trash2 className="mr-1 h-3 w-3" /> Delete Forever
+          </Button>
+        </div>
+      ) : (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
@@ -172,6 +264,11 @@ export default function Sales() {
                 <CheckCircle className="mr-2 h-4 w-4" /> Mark Delivered
               </DropdownMenuItem>
             )}
+            {order.status === 'ready_to_deliver' && (
+              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: order.id, status: 'shipped' })}>
+                <ShoppingCart className="mr-2 h-4 w-4" /> Mark Shipped
+              </DropdownMenuItem>
+            )}
             {(order.status === 'pending' || order.status === 'processing') && (
               <DropdownMenuItem 
                 onClick={() => updateStatus.mutate({ id: order.id, status: 'cancelled' })}
@@ -181,10 +278,10 @@ export default function Sales() {
               </DropdownMenuItem>
             )}
             <DropdownMenuItem 
-              onClick={() => setDeleteConfirm(order)} 
+              onClick={() => softDelete.mutate(order.id)} 
               className="text-destructive"
             >
-              <Trash2 className="mr-2 h-4 w-4" /> Delete
+              <Trash2 className="mr-2 h-4 w-4" /> Move to Recycle Bin
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -199,19 +296,44 @@ export default function Sales() {
         description="Manage and track your sales orders."
       />
 
-      <DataTable
-        columns={columns}
-        data={orders}
-        keyExtractor={(order) => order.id}
-        isLoading={isLoading}
-        emptyMessage="No sales orders yet. Convert a quotation to create a sales order."
-      />
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'active' | 'recycled')}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="active">Active Orders</TabsTrigger>
+          <TabsTrigger value="recycled">Recycle Bin</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="active">
+          <SalesFilters
+            statusFilter={statusFilter}
+            onStatusChange={setStatusFilter}
+            monthFilter={monthFilter}
+            onMonthChange={setMonthFilter}
+          />
+          <DataTable
+            columns={columns}
+            data={filteredOrders}
+            keyExtractor={(order) => order.id}
+            isLoading={isLoading}
+            emptyMessage="No sales orders yet. Convert a quotation to create a sales order."
+          />
+        </TabsContent>
+
+        <TabsContent value="recycled">
+          <DataTable
+            columns={columns}
+            data={filteredOrders}
+            keyExtractor={(order) => order.id}
+            isLoading={isLoading}
+            emptyMessage="Recycle bin is empty."
+          />
+        </TabsContent>
+      </Tabs>
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Sales Order?</AlertDialogTitle>
+            <AlertDialogTitle>Permanently Delete Sales Order?</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete order "{deleteConfirm?.order_number}". This action cannot be undone.
             </AlertDialogDescription>
@@ -221,13 +343,13 @@ export default function Sales() {
             <AlertDialogAction 
               onClick={() => {
                 if (deleteConfirm) {
-                  deleteOrder.mutate(deleteConfirm.id);
+                  permanentDelete.mutate(deleteConfirm.id);
                   setDeleteConfirm(null);
                 }
               }} 
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              Delete Forever
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -10,6 +10,7 @@ export interface ManufacturingOrder {
   status: 'planned' | 'in_progress' | 'under_qc' | 'completed' | 'qc_rejected' | 'closed' | 'cancelled';
   priority: 'low' | 'normal' | 'high' | 'urgent';
   sales_order_id: string | null;
+  quotation_id: string | null;
   planned_start: string | null;
   planned_end: string | null;
   actual_start: string | null;
