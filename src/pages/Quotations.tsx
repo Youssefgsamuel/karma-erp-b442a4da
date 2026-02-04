@@ -3,7 +3,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,7 +11,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Plus, MoreHorizontal, Trash2, Send, X, Check, Mail, MessageCircle, Filter, History, Edit, PackageCheck, Info } from 'lucide-react';
+import { Plus, MoreHorizontal, Trash2, Send, X, Check, Mail, MessageCircle, Filter, History, Edit, PackageCheck } from 'lucide-react';
+import { QuotationAvailabilityInfo } from '@/components/quotations/QuotationAvailabilityInfo';
 import { useQuotations, useCreateQuotation, useUpdateQuotationStatus, useDeleteQuotation, Quotation, CreateQuotationInput } from '@/hooks/useQuotations';
 import { useProducts } from '@/hooks/useProducts';
 import { useRawMaterials } from '@/hooks/useRawMaterials';
@@ -495,27 +496,16 @@ export default function Quotations() {
               />
             </div>
 
-            {/* Inventory Availability Alert */}
-            {inventoryAvailability.items.length > 0 && (
-              <Alert className={inventoryAvailability.allInStock ? 'border-green-500 bg-green-50 dark:bg-green-950' : 'border-blue-500 bg-blue-50 dark:bg-blue-950'}>
-                <Info className="h-4 w-4" />
-                <AlertDescription>
-                  {inventoryAvailability.allInStock ? (
-                    <span className="text-green-700 dark:text-green-300">
-                      <strong>All products are in stock!</strong> When accepted, you can fulfill this order directly from inventory without creating a Manufacturing Order.
-                    </span>
-                  ) : inventoryAvailability.partialInStock ? (
-                    <span className="text-blue-700 dark:text-blue-300">
-                      Some products are available in inventory. A Manufacturing Order will be needed for items not in stock.
-                    </span>
-                  ) : (
-                    <span className="text-blue-700 dark:text-blue-300">
-                      Products not in stock. A Manufacturing Order will be created when this quotation is accepted.
-                    </span>
-                  )}
-                </AlertDescription>
-              </Alert>
-            )}
+            {/* Inventory Availability Info */}
+            <QuotationAvailabilityInfo
+              items={formData.items}
+              products={products.map(p => ({
+                id: p.id,
+                name: p.name,
+                current_stock: Number(p.current_stock),
+                assigned_quantity: Number(p.assigned_quantity),
+              }))}
+            />
 
             <div className="bg-muted p-4 rounded-lg space-y-1 text-sm">
               <div className="flex justify-between"><span>Subtotal:</span> <span>{formatCurrency(subtotal)}</span></div>
