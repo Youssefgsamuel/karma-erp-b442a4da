@@ -77,7 +77,7 @@ function useUpdateSalesOrderStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: SalesOrder['status'] }) => {
+    mutationFn: async ({ id, status, orderNumber }: { id: string; status: SalesOrder['status']; orderNumber?: string }) => {
       const { data, error } = await supabase
         .from('sales_orders')
         .update({ status })
@@ -87,19 +87,29 @@ function useUpdateSalesOrderStatus() {
 
       if (error) throw error;
 
-      // Release assigned quantities when shipped, delivered, or cancelled
-      if (status === 'shipped' || status === 'delivered' || status === 'cancelled') {
+      // Release assigned quantities and send notifications when shipped
+      if (status === 'shipped') {
+        const { processShipment } = await import('@/hooks/useShipmentNotifications');
+        await processShipment(id, orderNumber || data.order_number);
+      }
+      
+      // Release assigned quantities when delivered or cancelled
+      if (status === 'delivered' || status === 'cancelled') {
         const { releaseAssignmentsForSalesOrder } = await import('@/hooks/useAssignedQuantityManager');
         await releaseAssignmentsForSalesOrder(id);
       }
 
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['sales_orders'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['product-assignments'] });
-      toast.success('Order status updated');
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      const statusMessage = variables.status === 'shipped' 
+        ? 'Order shipped - stock updated and notifications sent'
+        : 'Order status updated';
+      toast.success(statusMessage);
     },
     onError: (error) => {
       toast.error(`Failed to update status: ${error.message}`);
@@ -264,8 +274,8 @@ export default function Sales() {
               </DropdownMenuItem>
             )}
             {order.status === 'processing' && (
-              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: order.id, status: 'shipped' })}>
-                <ShoppingCart className="mr-2 h-4 w-4" /> Mark Shipped
+              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: order.id, status: 'shipped', orderNumber: order.order_number })}>
+                <ShoppingCart className="mr-2 h-4 w-4" /> Ship Order
               </DropdownMenuItem>
             )}
             {order.status === 'shipped' && (
@@ -274,8 +284,8 @@ export default function Sales() {
               </DropdownMenuItem>
             )}
             {order.status === 'ready_to_deliver' && (
-              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: order.id, status: 'shipped' })}>
-                <ShoppingCart className="mr-2 h-4 w-4" /> Mark Shipped
+              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: order.id, status: 'shipped', orderNumber: order.order_number })}>
+                <ShoppingCart className="mr-2 h-4 w-4" /> Ship Order
               </DropdownMenuItem>
             )}
             {(order.status === 'pending' || order.status === 'processing') && (

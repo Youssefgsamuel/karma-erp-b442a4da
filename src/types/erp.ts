@@ -84,6 +84,7 @@ export interface Product {
   manufacturing_time_minutes: number;
   minimum_stock: number;
   current_stock: number;
+  assigned_quantity: number;
   is_active: boolean;
   assigned_to?: string;
   created_at: string;
