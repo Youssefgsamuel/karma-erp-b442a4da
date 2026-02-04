@@ -86,10 +86,19 @@ function useUpdateSalesOrderStatus() {
         .single();
 
       if (error) throw error;
+
+      // Release assigned quantities when shipped, delivered, or cancelled
+      if (status === 'shipped' || status === 'delivered' || status === 'cancelled') {
+        const { releaseAssignmentsForSalesOrder } = await import('@/hooks/useAssignedQuantityManager');
+        await releaseAssignmentsForSalesOrder(id);
+      }
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sales_orders'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['product-assignments'] });
       toast.success('Order status updated');
     },
     onError: (error) => {

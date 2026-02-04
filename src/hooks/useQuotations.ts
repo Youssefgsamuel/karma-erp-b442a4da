@@ -352,6 +352,12 @@ export function useUpdateQuotationStatus() {
 
       if (error) throw error;
 
+      // Release assigned quantities when quotation is cancelled or rejected
+      if (status === 'rejected' || status === 'expired') {
+        const { releaseAssignmentsForQuotation } = await import('@/hooks/useAssignedQuantityManager');
+        await releaseAssignmentsForQuotation(id);
+      }
+
       // If status is accepted, always create sales order and optionally create MO
       if (status === 'accepted') {
         // Create sales order automatically
@@ -557,6 +563,8 @@ export function useUpdateQuotationStatus() {
         } else {
           toast.success('Quotation accepted and Sales Order created');
         }
+      } else if (variables.status === 'rejected' || variables.status === 'expired') {
+        toast.success('Quotation cancelled and assigned quantities released');
       } else {
         toast.success('Quotation status updated');
       }
