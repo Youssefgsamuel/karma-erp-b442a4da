@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useQuotationEditHistory } from '@/hooks/useQuotationEditHistory';
 import { format } from 'date-fns';
-import { Loader2, ArrowRight, Clock } from 'lucide-react';
+import { Loader2, Clock } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 
@@ -49,7 +49,7 @@ export function QuotationEditHistoryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh]">
+      <DialogContent className="max-w-4xl max-h-[80vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5" />
@@ -60,7 +60,7 @@ export function QuotationEditHistoryDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="h-[400px] pr-4">
+        <ScrollArea className="h-[500px] pr-4">
           {isLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -68,13 +68,13 @@ export function QuotationEditHistoryDialog({
           ) : history.length === 0 ? (
             <p className="text-muted-foreground text-center py-4">No edit history</p>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-6">
               {history.map((entry, index) => (
                 <div
                   key={entry.id}
-                  className="p-4 rounded-lg border bg-card"
+                  className="rounded-lg border bg-card overflow-hidden"
                 >
-                  <div className="flex justify-between items-center mb-3">
+                  <div className="flex justify-between items-center p-4 bg-muted/50 border-b">
                     <Badge variant="outline">
                       Edit #{history.length - index}
                     </Badge>
@@ -82,26 +82,56 @@ export function QuotationEditHistoryDialog({
                       {format(new Date(entry.edited_at), 'MMM d, yyyy HH:mm')}
                     </span>
                   </div>
-                  <div className="space-y-3">
-                    {Object.entries(entry.changes).map(([field, change]) => {
-                      const typedChange = change as { old: unknown; new: unknown };
-                      return (
-                        <div key={field} className="bg-muted/50 rounded-md p-3">
-                          <span className="font-medium text-sm block mb-2">
-                            {getFieldLabel(field)}
-                          </span>
-                          <div className="flex items-center gap-3 text-sm">
-                            <span className="text-destructive bg-destructive/10 px-2 py-1 rounded line-through">
-                              {formatValue(typedChange.old)}
-                            </span>
-                            <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                            <span className="text-green-600 bg-green-500/10 px-2 py-1 rounded">
-                              {formatValue(typedChange.new)}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
+                  
+                  {/* Side by side comparison */}
+                  <div className="grid grid-cols-2 divide-x">
+                    {/* Before column */}
+                    <div className="p-4">
+                      <h4 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">
+                        Before
+                      </h4>
+                      <div className="space-y-3">
+                        {Object.entries(entry.changes).map(([field, change]) => {
+                          const typedChange = change as { old: unknown; new: unknown };
+                          return (
+                            <div key={field} className="space-y-1">
+                              <span className="text-xs font-medium text-muted-foreground">
+                                {getFieldLabel(field)}
+                              </span>
+                              <div className="p-2 rounded bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900">
+                                <span className="text-red-700 dark:text-red-400 font-medium">
+                                  {formatValue(typedChange.old)}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    
+                    {/* After column */}
+                    <div className="p-4">
+                      <h4 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">
+                        After
+                      </h4>
+                      <div className="space-y-3">
+                        {Object.entries(entry.changes).map(([field, change]) => {
+                          const typedChange = change as { old: unknown; new: unknown };
+                          return (
+                            <div key={field} className="space-y-1">
+                              <span className="text-xs font-medium text-muted-foreground">
+                                {getFieldLabel(field)}
+                              </span>
+                              <div className="p-2 rounded bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900">
+                                <span className="text-green-700 dark:text-green-400 font-medium">
+                                  {formatValue(typedChange.new)}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}
