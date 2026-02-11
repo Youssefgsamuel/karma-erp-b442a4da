@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react';
+import { Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -187,6 +189,7 @@ export default function Sales() {
   const [activeTab, setActiveTab] = useState<'active' | 'recycled'>('active');
   const [statusFilter, setStatusFilter] = useState('all');
   const [monthFilter, setMonthFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
   
   const { data: orders = [], isLoading } = useSalesOrders(activeTab === 'recycled');
   const updateStatus = useUpdateSalesOrderStatus();
@@ -197,18 +200,23 @@ export default function Sales() {
 
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
-      // Status filter
       if (statusFilter !== 'all' && order.status !== statusFilter) return false;
-      
-      // Month filter
       if (monthFilter !== 'all') {
         const orderMonth = new Date(order.order_date).getMonth();
         if (orderMonth !== parseInt(monthFilter)) return false;
       }
-      
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const match = order.order_number.toLowerCase().includes(q) ||
+          order.customer_name.toLowerCase().includes(q) ||
+          order.status.toLowerCase().includes(q) ||
+          String(order.total).includes(q) ||
+          (order.notes || '').toLowerCase().includes(q);
+        if (!match) return false;
+      }
       return true;
     });
-  }, [orders, statusFilter, monthFilter]);
+  }, [orders, statusFilter, monthFilter, searchQuery]);
 
   const columns: Column<SalesOrder>[] = [
     { 
@@ -314,6 +322,19 @@ export default function Sales() {
         title="Sales Orders"
         description="Manage and track your sales orders."
       />
+
+      {/* Search */}
+      <div className="mb-4 flex items-center gap-4">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search orders..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+      </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'active' | 'recycled')}>
         <TabsList className="mb-4">
