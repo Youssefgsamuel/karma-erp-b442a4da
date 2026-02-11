@@ -34,6 +34,7 @@ import {
 import { ExcelUpload, ColumnMapping } from '@/components/upload/ExcelUpload';
 import { Package, Plus, MoreHorizontal, Pencil, Trash2, Search, PlusCircle, Upload } from 'lucide-react';
 import { HybridMaterialsForm, MaterialLine } from '@/components/products/HybridMaterialsForm';
+import { ProductBomDialog } from '@/components/products/ProductBomDialog';
 import type { Product, ProductType, UnitOfMeasure, Category } from '@/types/erp';
 
 const unitOptions: UnitOfMeasure[] = ['pcs', 'kg', 'g', 'l', 'ml', 'm', 'cm', 'mm', 'box', 'pack'];
@@ -84,15 +85,24 @@ export default function Products() {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [hybridMaterials, setHybridMaterials] = useState<MaterialLine[]>([]);
+  const [bomDialog, setBomDialog] = useState<{ productId: string; productName: string } | null>(null);
 
   // Fetch materials when editing a hybrid product
   const { data: existingMaterials = [] } = useProductMaterials(editingProduct?.id || '');
 
-  const filteredProducts = products.filter(
-    (p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.sku.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredProducts = products.filter((p) => {
+    const q = searchQuery.toLowerCase();
+    return (
+      p.name.toLowerCase().includes(q) ||
+      p.sku.toLowerCase().includes(q) ||
+      (p.description || '').toLowerCase().includes(q) ||
+      p.product_type.toLowerCase().includes(q) ||
+      p.unit.toLowerCase().includes(q) ||
+      String(p.selling_price).includes(q) ||
+      String(p.current_stock).includes(q) ||
+      (p.category?.name || '').toLowerCase().includes(q)
+    );
+  });
 
   const resetForm = () => {
     setFormData(initialFormData);
@@ -238,7 +248,12 @@ export default function Products() {
       header: 'Product Name',
       cell: (item) => (
         <div>
-          <p className="font-medium">{item.name}</p>
+          <button
+            className="font-medium text-primary hover:underline cursor-pointer text-left"
+            onClick={() => setBomDialog({ productId: item.id, productName: item.name })}
+          >
+            {item.name}
+          </button>
           {item.category && (
             <p className="text-xs text-muted-foreground">{item.category.name}</p>
           )}
@@ -440,6 +455,15 @@ export default function Products() {
         isOpen={isExcelOpen}
         onOpenChange={setIsExcelOpen}
       />
+
+      {bomDialog && (
+        <ProductBomDialog
+          open={!!bomDialog}
+          onOpenChange={(open) => !open && setBomDialog(null)}
+          productId={bomDialog.productId}
+          productName={bomDialog.productName}
+        />
+      )}
     </div>
   );
 }
