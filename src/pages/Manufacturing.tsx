@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Plus, MoreHorizontal, Play, CheckCircle, XCircle, Trash2, AlertTriangle, CheckCircle2, ListChecks, RotateCcw } from 'lucide-react';
+import { Plus, MoreHorizontal, Play, CheckCircle, XCircle, Trash2, AlertTriangle, CheckCircle2, ListChecks, RotateCcw, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { useManufacturingOrders, useCreateManufacturingOrder, useUpdateManufacturingOrder, useDeleteManufacturingOrder, ManufacturingOrder } from '@/hooks/useManufacturingOrders';
 import { useMoItems, useAllMoItems, useCreateMoItems, useUpdateMoItemStatus, MoItemWithProduct } from '@/hooks/useMoItems';
@@ -70,6 +70,7 @@ export default function Manufacturing() {
   const updateItemStatus = useUpdateMoItemStatus();
 
   const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
+  const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isItemsDialogOpen, setIsItemsDialogOpen] = useState(false);
   const [selectedMO, setSelectedMO] = useState<MOWithCounts | null>(null);
@@ -144,8 +145,17 @@ export default function Manufacturing() {
         moItems: items,
         quotation_number: mo.quotation_id ? quotationMap[mo.quotation_id] : undefined,
       };
+    }).filter(mo => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return mo.mo_number.toLowerCase().includes(q) ||
+        mo.status.toLowerCase().includes(q) ||
+        mo.priority.toLowerCase().includes(q) ||
+        (mo.quotation_number || '').toLowerCase().includes(q) ||
+        (mo.notes || '').toLowerCase().includes(q) ||
+        String(mo.totalQuantity).includes(q);
     });
-  }, [displayOrders, moItemsMap, quotationMap]);
+  }, [displayOrders, moItemsMap, quotationMap, searchQuery]);
 
   // Fetch MO items for selected MO
   const { data: selectedMoItems = [] } = useMoItems(selectedMO?.id || '');
@@ -317,6 +327,19 @@ export default function Manufacturing() {
           </Button>
         }
       />
+
+      {/* Search */}
+      <div className="mb-4 flex items-center gap-4">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search manufacturing orders..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+      </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'active' | 'completed')}>
         <TabsList className="mb-4">

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, CheckCircle, XCircle, ClipboardCheck, AlertCircle, History } from 'lucide-react';
+import { MoreHorizontal, CheckCircle, XCircle, ClipboardCheck, AlertCircle, History, Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import {
   useQualityControlRecords,
   useQualityControlCounts,
@@ -34,9 +35,24 @@ export default function QualityControl() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [acceptNotes, setAcceptNotes] = useState('');
   const [historyDialog, setHistoryDialog] = useState<{ moId: string; moNumber: string } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const filter = activeTab === 'all' ? undefined : activeTab;
   const { data: records = [], isLoading } = useQualityControlRecords(filter);
+  
+  const filteredRecords = useMemo(() => {
+    if (!searchQuery) return records;
+    const q = searchQuery.toLowerCase();
+    return records.filter(qc =>
+      (qc.manufacturing_order?.mo_number || '').toLowerCase().includes(q) ||
+      (qc.product?.name || '').toLowerCase().includes(q) ||
+      (qc.product?.sku || '').toLowerCase().includes(q) ||
+      qc.status.toLowerCase().includes(q) ||
+      (qc.inspector?.full_name || '').toLowerCase().includes(q) ||
+      String(qc.quantity).includes(q) ||
+      (qc.notes || '').toLowerCase().includes(q)
+    );
+  }, [records, searchQuery]);
   const { data: counts } = useQualityControlCounts();
   const acceptQc = useAcceptQualityControl();
   const rejectQc = useRejectQualityControl();
@@ -203,6 +219,19 @@ export default function QualityControl() {
         </div>
       </div>
 
+      {/* Search */}
+      <div className="mb-4 flex items-center gap-4">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search QC records..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+      </div>
+
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
         <TabsList className="mb-4">
@@ -217,7 +246,7 @@ export default function QualityControl() {
         <TabsContent value={activeTab}>
           <DataTable
             columns={columns}
-            data={records}
+            data={filteredRecords}
             keyExtractor={(qc) => qc.id}
             isLoading={isLoading}
             emptyMessage={`No ${activeTab === 'all' ? '' : activeTab.replace('_', ' ')} QC records.`}
