@@ -273,6 +273,36 @@ export type Database = {
           },
         ]
       }
+      mo_deletion_audit: {
+        Row: {
+          deleted_at: string
+          deleted_by: string | null
+          deletion_reason: string | null
+          id: string
+          mo_data: Json
+          mo_id: string
+          mo_number: string
+        }
+        Insert: {
+          deleted_at?: string
+          deleted_by?: string | null
+          deletion_reason?: string | null
+          id?: string
+          mo_data: Json
+          mo_id: string
+          mo_number: string
+        }
+        Update: {
+          deleted_at?: string
+          deleted_by?: string | null
+          deletion_reason?: string | null
+          id?: string
+          mo_data?: Json
+          mo_id?: string
+          mo_number?: string
+        }
+        Relationships: []
+      }
       mo_items: {
         Row: {
           created_at: string
