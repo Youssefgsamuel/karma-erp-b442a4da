@@ -252,27 +252,72 @@ export function useUpdateQuotation() {
       const taxAmount = taxableAmount * (input.tax_percent || 0) / 100;
       const total = taxableAmount + taxAmount;
 
+      // Get current items for edit history
+      const { data: currentItems } = await supabase
+        .from('quotation_items')
+        .select('description, quantity, unit_price, total')
+        .eq('quotation_id', input.id)
+        .order('created_at', { ascending: true });
+
       // Track changes
       const changes: Record<string, any> = {};
       const previousValues: Record<string, any> = {};
 
       if (currentQuotation) {
         if (currentQuotation.customer_name !== input.customer_name) {
-          changes.customer_name = input.customer_name;
+          changes.customer_name = { old: currentQuotation.customer_name, new: input.customer_name };
           previousValues.customer_name = currentQuotation.customer_name;
         }
-        if (currentQuotation.discount_percent !== input.discount_percent) {
-          changes.discount_percent = input.discount_percent;
+        if (currentQuotation.customer_email !== (input.customer_email || null)) {
+          changes.customer_email = { old: currentQuotation.customer_email, new: input.customer_email || null };
+          previousValues.customer_email = currentQuotation.customer_email;
+        }
+        if (currentQuotation.customer_phone !== (input.customer_phone || null)) {
+          changes.customer_phone = { old: currentQuotation.customer_phone, new: input.customer_phone || null };
+          previousValues.customer_phone = currentQuotation.customer_phone;
+        }
+        if (currentQuotation.valid_from !== input.valid_from) {
+          changes.valid_from = { old: currentQuotation.valid_from, new: input.valid_from };
+          previousValues.valid_from = currentQuotation.valid_from;
+        }
+        if (currentQuotation.valid_until !== input.valid_until) {
+          changes.valid_until = { old: currentQuotation.valid_until, new: input.valid_until };
+          previousValues.valid_until = currentQuotation.valid_until;
+        }
+        if (currentQuotation.discount_percent !== (input.discount_percent || 0)) {
+          changes.discount_percent = { old: currentQuotation.discount_percent, new: input.discount_percent || 0 };
           previousValues.discount_percent = currentQuotation.discount_percent;
         }
-        if (currentQuotation.tax_percent !== input.tax_percent) {
-          changes.tax_percent = input.tax_percent;
+        if (currentQuotation.tax_percent !== (input.tax_percent || 0)) {
+          changes.tax_percent = { old: currentQuotation.tax_percent, new: input.tax_percent || 0 };
           previousValues.tax_percent = currentQuotation.tax_percent;
         }
+        if (currentQuotation.notes !== (input.notes || null)) {
+          changes.notes = { old: currentQuotation.notes, new: input.notes || null };
+          previousValues.notes = currentQuotation.notes;
+        }
         if (currentQuotation.total !== total) {
-          changes.total = total;
+          changes.total = { old: currentQuotation.total, new: total };
           previousValues.total = currentQuotation.total;
         }
+        if (currentQuotation.subtotal !== subtotal) {
+          changes.subtotal = { old: currentQuotation.subtotal, new: subtotal };
+          previousValues.subtotal = currentQuotation.subtotal;
+        }
+      }
+
+      // Always track item changes by saving full snapshots
+      const newItems = input.items.map(item => ({
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total: item.quantity * item.unit_price,
+      }));
+
+      const itemsChanged = JSON.stringify(currentItems || []) !== JSON.stringify(newItems);
+      if (itemsChanged) {
+        changes.items = { old: currentItems || [], new: newItems };
+        previousValues.items = currentItems || [];
       }
 
       // Update quotation
@@ -297,7 +342,7 @@ export function useUpdateQuotation() {
 
       if (quotationError) throw quotationError;
 
-      // Record edit history
+      // Record edit history with full item snapshots
       if (Object.keys(changes).length > 0) {
         await supabase.from('quotation_edit_history').insert({
           quotation_id: input.id,
@@ -405,7 +450,7 @@ export function useUpdateQuotationStatus() {
 
           const allInStock = itemsNeedMO.length === 0;
 
-          if (allInStock && productItems.length > 0) {
+          if (allInStock && !createMO && productItems.length > 0) {
             // Don't create MO - items can be fulfilled from inventory
             // Deduct inventory for all items
             for (const item of itemsInStock) {
