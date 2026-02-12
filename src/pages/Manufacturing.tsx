@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Plus, MoreHorizontal, Play, CheckCircle, XCircle, Trash2, AlertTriangle, CheckCircle2, ListChecks, RotateCcw, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { useManufacturingOrders, useCreateManufacturingOrder, useUpdateManufacturingOrder, useDeleteManufacturingOrder, ManufacturingOrder } from '@/hooks/useManufacturingOrders';
@@ -81,12 +82,26 @@ export default function Manufacturing() {
   
   // All items form state
   const [moItems, setMoItems] = useState<MoItemLine[]>([{ product_id: '', quantity: 1, notes: '' }]);
+  const [deleteConfirm, setDeleteConfirm] = useState<MOWithCounts | null>(null);
+  const [deleteReason, setDeleteReason] = useState('');
   const [formData, setFormData] = useState({
     priority: 'normal' as ManufacturingOrder['priority'],
     planned_start: new Date().toISOString().split('T')[0],
     planned_end: '',
     notes: '',
   });
+
+  const handleDeleteMO = (mo: MOWithCounts) => {
+    setDeleteConfirm(mo);
+    setDeleteReason('');
+  };
+
+  const confirmDeleteMO = () => {
+    if (!deleteConfirm) return;
+    deleteMO.mutate({ id: deleteConfirm.id, reason: deleteReason });
+    setDeleteConfirm(null);
+    setDeleteReason('');
+  };
 
   // Fetch quotation numbers for MOs with quotation_id
   const quotationIds = allOrders.filter(mo => mo.quotation_id).map(mo => mo.quotation_id!);
@@ -278,40 +293,48 @@ export default function Manufacturing() {
       { key: 'planned_end', header: 'Planned End', cell: (mo) => mo.planned_end ? format(new Date(mo.planned_end), 'MMM d, yyyy') : '-' },
     ];
 
-    if (activeTab === 'active') {
-      baseColumns.push({ key: 'actions', header: '', cell: (mo) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleViewItems(mo)}>
-              <ListChecks className="mr-2 h-4 w-4" /> View Items
+    // Add actions for both active and completed tabs
+    baseColumns.push({ key: 'actions', header: '', cell: (mo) => (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => handleViewItems(mo)}>
+            <ListChecks className="mr-2 h-4 w-4" /> View Items
+          </DropdownMenuItem>
+          {activeTab === 'active' && (
+            <>
+              {mo.status === 'planned' && (
+                <DropdownMenuItem onClick={() => updateMO.mutate({ id: mo.id, status: 'in_progress' })}>
+                  <Play className="mr-2 h-4 w-4" /> Start Production
+                </DropdownMenuItem>
+              )}
+              {mo.status === 'in_progress' && (
+                <DropdownMenuItem onClick={() => updateMO.mutate({ id: mo.id, status: 'completed' })}>
+                  <CheckCircle className="mr-2 h-4 w-4" /> Mark Complete (Send to QC)
+                </DropdownMenuItem>
+              )}
+              {(mo.status === 'planned' || mo.status === 'in_progress') && (
+                <DropdownMenuItem onClick={() => updateMO.mutate({ id: mo.id, status: 'cancelled' })} className="text-destructive">
+                  <XCircle className="mr-2 h-4 w-4" /> Cancel
+                </DropdownMenuItem>
+              )}
+              {(mo.status === 'planned' || mo.status === 'cancelled') && (
+                <DropdownMenuItem onClick={() => handleDeleteMO(mo)} className="text-destructive">
+                  <Trash2 className="mr-2 h-4 w-4" /> Delete
+                </DropdownMenuItem>
+              )}
+            </>
+          )}
+          {activeTab === 'completed' && ['completed', 'closed', 'cancelled'].includes(mo.status) && (
+            <DropdownMenuItem onClick={() => handleDeleteMO(mo)} className="text-destructive">
+              <Trash2 className="mr-2 h-4 w-4" /> Delete
             </DropdownMenuItem>
-            {mo.status === 'planned' && (
-              <DropdownMenuItem onClick={() => updateMO.mutate({ id: mo.id, status: 'in_progress' })}>
-                <Play className="mr-2 h-4 w-4" /> Start Production
-              </DropdownMenuItem>
-            )}
-            {mo.status === 'in_progress' && (
-              <DropdownMenuItem onClick={() => updateMO.mutate({ id: mo.id, status: 'completed' })}>
-                <CheckCircle className="mr-2 h-4 w-4" /> Mark Complete (Send to QC)
-              </DropdownMenuItem>
-            )}
-            {(mo.status === 'planned' || mo.status === 'in_progress') && (
-              <DropdownMenuItem onClick={() => updateMO.mutate({ id: mo.id, status: 'cancelled' })} className="text-destructive">
-                <XCircle className="mr-2 h-4 w-4" /> Cancel
-              </DropdownMenuItem>
-            )}
-            {(mo.status === 'planned' || mo.status === 'cancelled') && (
-              <DropdownMenuItem onClick={() => deleteMO.mutate(mo.id)} className="text-destructive">
-                <Trash2 className="mr-2 h-4 w-4" /> Delete
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )});
-    }
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )});
 
     return baseColumns;
   };
@@ -592,6 +615,32 @@ export default function Manufacturing() {
           items={quantityDialogMO.moItems}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Manufacturing Order</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {deleteConfirm?.mo_number}? This will be recorded in the audit trail.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 py-2">
+            <Label>Reason for deletion</Label>
+            <Textarea
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)}
+              placeholder="Enter reason for deleting this MO..."
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteMO} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

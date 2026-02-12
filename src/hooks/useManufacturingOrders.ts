@@ -296,17 +296,39 @@ export function useDeleteManufacturingOrder() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async (input: string | { id: string; reason?: string }) => {
+      const moId = typeof input === 'string' ? input : input.id;
+      const deletionReason = typeof input === 'string' ? undefined : input.reason;
+
+      // Fetch MO data for audit trail
+      const { data: moData, error: fetchError } = await supabase
+        .from('manufacturing_orders')
+        .select('*')
+        .eq('id', moId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Record in audit trail
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from('mo_deletion_audit').insert({
+        mo_number: moData.mo_number,
+        mo_id: moId,
+        deleted_by: user?.id || null,
+        deletion_reason: deletionReason || null,
+        mo_data: moData,
+      });
+
       const { error } = await supabase
         .from('manufacturing_orders')
         .delete()
-        .eq('id', id);
+        .eq('id', moId);
 
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['manufacturing_orders'] });
-      toast.success('Manufacturing Order deleted');
+      toast.success('Manufacturing Order deleted (recorded in audit trail)');
     },
     onError: (error) => {
       toast.error(`Failed to delete MO: ${error.message}`);

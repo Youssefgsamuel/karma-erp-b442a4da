@@ -195,6 +195,14 @@ export default function Quotations() {
   const taxAmount = (subtotal - discountAmount) * (formData.tax_percent || 0) / 100;
   const total = subtotal - discountAmount + taxAmount;
 
+  // Filter state
+  const [showEditedOnly, setShowEditedOnly] = useState(false);
+
+  const displayedQuotations = useMemo(() => {
+    if (!showEditedOnly) return quotations;
+    return quotations.filter(q => ((q as any).edit_count || 0) > 0);
+  }, [quotations, showEditedOnly]);
+
   const columns: Column<Quotation>[] = [
     { key: 'quotation_number', header: 'Number', cell: (q) => (
       <button 
@@ -208,18 +216,19 @@ export default function Quotations() {
     { key: 'status', header: 'Status', cell: (q) => (
       <Badge className={statusColors[q.status]}>{q.status}</Badge>
     )},
-    { key: 'edited', header: 'Edited', cell: (q) => {
+    { key: 'edited', header: 'Version', cell: (q) => {
       const editCount = (q as Quotation & { edit_count?: number }).edit_count || 0;
       return editCount > 0 ? (
         <button
           className="flex items-center gap-1 text-sm text-primary hover:underline cursor-pointer"
           onClick={() => setHistoryDialog({ id: q.id, number: q.quotation_number })}
+          title={`Last edited: ${format(new Date(q.updated_at), 'MMM d, yyyy HH:mm')}`}
         >
           <History className="h-3 w-3" />
-          {editCount}x
+          v{editCount + 1}
         </button>
       ) : (
-        <span className="text-muted-foreground">-</span>
+        <span className="text-muted-foreground">v1</span>
       );
     }},
     { key: 'valid_until', header: 'Valid Until', cell: (q) => format(new Date(q.valid_until), 'MMM d, yyyy') },
@@ -288,9 +297,20 @@ export default function Quotations() {
         }
       />
 
+      <div className="flex items-center gap-4 mb-4">
+        <Button
+          variant={showEditedOnly ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setShowEditedOnly(!showEditedOnly)}
+        >
+          <Filter className="mr-2 h-4 w-4" />
+          {showEditedOnly ? 'Show All' : 'Edited Only'}
+        </Button>
+      </div>
+
       <DataTable
         columns={columns}
-        data={quotations}
+        data={displayedQuotations}
         keyExtractor={(q) => q.id}
         isLoading={isLoading}
         emptyMessage="No quotations yet. Create your first quotation."
