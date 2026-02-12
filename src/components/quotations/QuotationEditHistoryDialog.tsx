@@ -16,6 +16,13 @@ interface QuotationEditHistoryDialogProps {
   quotationNumber: string;
 }
 
+interface QuotationItem {
+  description: string;
+  quantity: number;
+  unit_price: number;
+  total: number;
+}
+
 interface QuotationWithItems {
   id: string;
   quotation_number: string;
@@ -30,12 +37,7 @@ interface QuotationWithItems {
   total: number;
   notes: string | null;
   status: string;
-  items: Array<{
-    description: string;
-    quantity: number;
-    unit_price: number;
-    total: number;
-  }>;
+  items: QuotationItem[];
 }
 
 export function QuotationEditHistoryDialog({
@@ -46,7 +48,7 @@ export function QuotationEditHistoryDialog({
 }: QuotationEditHistoryDialogProps) {
   const { data: history = [], isLoading: historyLoading } = useQuotationEditHistory(quotationId);
 
-  // Fetch current quotation
+  // Fetch current quotation with items
   const { data: currentQuotation, isLoading: currentLoading } = useQuery({
     queryKey: ['quotation-current', quotationId],
     queryFn: async () => {
@@ -55,7 +57,6 @@ export function QuotationEditHistoryDialog({
         .select('*')
         .eq('id', quotationId)
         .single();
-      
       if (error) throw error;
 
       const { data: items } = await supabase
@@ -63,10 +64,7 @@ export function QuotationEditHistoryDialog({
         .select('description, quantity, unit_price, total')
         .eq('quotation_id', quotationId);
 
-      return {
-        ...quotation,
-        items: items || [],
-      } as QuotationWithItems;
+      return { ...quotation, items: items || [] } as QuotationWithItems;
     },
     enabled: open && !!quotationId,
   });
@@ -75,42 +73,40 @@ export function QuotationEditHistoryDialog({
   const originalQuotation = (() => {
     if (!currentQuotation || history.length === 0) return currentQuotation;
 
-    // Start with current quotation data
     const original: Record<string, unknown> = { ...currentQuotation };
-    
-    // Sort history by date (oldest first)
-    const sortedHistory = [...history].sort((a, b) => 
+    const sortedHistory = [...history].sort((a, b) =>
       new Date(a.edited_at).getTime() - new Date(b.edited_at).getTime()
     );
 
-    // Collect all original values from edit history
-    // Walk through all history entries and get the original (old) values
+    // Get earliest original values for each changed field
     const originalValues: Record<string, unknown> = {};
+    let originalItems: QuotationItem[] | null = null;
+
     for (const entry of sortedHistory) {
       for (const [field, change] of Object.entries(entry.changes)) {
         const typedChange = change as { old: unknown; new: unknown };
-        // Only set if not already set (keep earliest original value)
-        if (!(field in originalValues)) {
+        if (field === 'items' && !originalItems) {
+          originalItems = typedChange.old as QuotationItem[];
+        } else if (!(field in originalValues)) {
           originalValues[field] = typedChange.old;
         }
       }
     }
 
-    return { ...currentQuotation, ...originalValues } as QuotationWithItems;
+    const result = { ...currentQuotation, ...originalValues } as QuotationWithItems;
+    if (originalItems) {
+      result.items = originalItems;
+    }
+    return result;
   })();
 
-  const formatValue = (value: unknown, field?: string): string => {
-    if (value === null || value === undefined) return '(empty)';
-    if (typeof value === 'number') {
-      if (field?.includes('percent')) return `${value}%`;
-      if (field === 'subtotal' || field === 'total' || field?.includes('price')) {
-        return formatCurrency(value);
-      }
-      return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    }
-    if (typeof value === 'object') return JSON.stringify(value);
-    return String(value);
-  };
+  // Get all changed fields
+  const changedFields = new Set<string>();
+  history.forEach(entry => {
+    Object.keys(entry.changes).forEach(field => changedFields.add(field));
+  });
+
+  const isLoading = historyLoading || currentLoading;
 
   const getFieldLabel = (field: string): string => {
     const labels: Record<string, string> = {
@@ -124,19 +120,53 @@ export function QuotationEditHistoryDialog({
       subtotal: 'Subtotal',
       total: 'Total',
       notes: 'Notes',
-      status: 'Status',
       items: 'Items',
     };
     return labels[field] || field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
-  // Get all changed fields
-  const changedFields = new Set<string>();
-  history.forEach(entry => {
-    Object.keys(entry.changes).forEach(field => changedFields.add(field));
-  });
+  const formatValue = (value: unknown, field?: string): string => {
+    if (value === null || value === undefined) return '(empty)';
+    if (typeof value === 'number') {
+      if (field?.includes('percent')) return `${value}%`;
+      if (field === 'subtotal' || field === 'total' || field?.includes('price'))
+        return formatCurrency(value);
+      return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    if (Array.isArray(value)) return `${value.length} item(s)`;
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
+  };
 
-  const isLoading = historyLoading || currentLoading;
+  const renderItemsTable = (items: QuotationItem[], highlight: 'red' | 'green' | 'none') => {
+    const textClass =
+      highlight === 'red' ? 'text-destructive' : highlight === 'green' ? 'text-green-600 dark:text-green-400' : '';
+
+    return (
+      <div className="mt-2">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-muted-foreground">
+              <th className="text-left py-1 font-medium">Description</th>
+              <th className="text-right py-1 font-medium">Qty</th>
+              <th className="text-right py-1 font-medium">Price</th>
+              <th className="text-right py-1 font-medium">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item, i) => (
+              <tr key={i} className={`border-b border-border/50 ${textClass}`}>
+                <td className="py-1">{item.description}</td>
+                <td className="text-right py-1">{item.quantity}</td>
+                <td className="text-right py-1">{formatCurrency(item.unit_price)}</td>
+                <td className="text-right py-1">{formatCurrency(item.total)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
 
   const renderQuotationCard = (quotation: QuotationWithItems | undefined, label: string, isOriginal: boolean) => {
     if (!quotation) return null;
@@ -146,56 +176,47 @@ export function QuotationEditHistoryDialog({
     const headerColor = isOriginal ? 'text-destructive' : 'text-green-600 dark:text-green-400';
     const highlightColor = isOriginal ? 'text-destructive font-medium' : 'text-green-600 font-medium';
 
+    const fields = [
+      { key: 'customer_name', label: 'Customer' },
+      { key: 'customer_email', label: 'Email' },
+      { key: 'customer_phone', label: 'Phone' },
+      { key: 'valid_from', label: 'Valid From', format: (v: string) => format(new Date(v), 'MMM d, yyyy') },
+      { key: 'valid_until', label: 'Valid Until', format: (v: string) => format(new Date(v), 'MMM d, yyyy') },
+      { key: 'discount_percent', label: 'Discount', format: (v: number) => `${v}%` },
+      { key: 'tax_percent', label: 'Tax', format: (v: number) => `${v}%` },
+      { key: 'subtotal', label: 'Subtotal', format: (v: number) => formatCurrency(v) },
+      { key: 'total', label: 'Total', format: (v: number) => formatCurrency(v), bold: true },
+    ];
+
     return (
       <div className={`rounded-lg border p-4 ${borderColor} ${bgColor}`}>
-        <h4 className={`text-sm font-semibold mb-3 uppercase tracking-wide ${headerColor}`}>
-          {label}
-        </h4>
+        <h4 className={`text-sm font-semibold mb-3 uppercase tracking-wide ${headerColor}`}>{label}</h4>
         <div className="space-y-2 text-sm">
-          <div className="grid grid-cols-2 gap-2">
-            <span className="text-muted-foreground">Customer:</span>
-            <span className={changedFields.has('customer_name') ? highlightColor : ''}>
-              {quotation.customer_name}
-            </span>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <span className="text-muted-foreground">Valid Until:</span>
-            <span className={changedFields.has('valid_until') ? highlightColor : ''}>
-              {format(new Date(quotation.valid_until), 'MMM d, yyyy')}
-            </span>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <span className="text-muted-foreground">Discount:</span>
-            <span className={changedFields.has('discount_percent') ? highlightColor : ''}>
-              {quotation.discount_percent}%
-            </span>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <span className="text-muted-foreground">Tax:</span>
-            <span className={changedFields.has('tax_percent') ? highlightColor : ''}>
-              {quotation.tax_percent}%
-            </span>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <span className="text-muted-foreground">Subtotal:</span>
-            <span className={changedFields.has('subtotal') ? highlightColor : ''}>
-              {formatCurrency(quotation.subtotal)}
-            </span>
-          </div>
-          <div className="grid grid-cols-2 gap-2 font-semibold">
-            <span className="text-muted-foreground">Total:</span>
-            <span className={changedFields.has('total') ? highlightColor : ''}>
-              {formatCurrency(quotation.total)}
-            </span>
-          </div>
+          {fields.map(({ key, label, format: fmt, bold }) => {
+            const value = (quotation as unknown as Record<string, unknown>)[key];
+            if (value === null || value === undefined) return null;
+            const displayed = fmt ? (fmt as (v: any) => string)(value) : String(value);
+            return (
+              <div key={key} className={`grid grid-cols-2 gap-2 ${bold ? 'font-semibold' : ''}`}>
+                <span className="text-muted-foreground">{label}:</span>
+                <span className={changedFields.has(key) ? highlightColor : ''}>{displayed}</span>
+              </div>
+            );
+          })}
           {quotation.notes && (
             <div className="pt-2 border-t">
               <span className="text-muted-foreground block mb-1">Notes:</span>
-              <span className={changedFields.has('notes') ? highlightColor : ''}>
-                {quotation.notes}
-              </span>
+              <span className={changedFields.has('notes') ? highlightColor : ''}>{quotation.notes}</span>
             </div>
           )}
+        </div>
+
+        {/* Items section */}
+        <div className="mt-4 pt-3 border-t">
+          <h5 className={`text-xs font-semibold uppercase tracking-wide mb-1 ${changedFields.has('items') ? headerColor : 'text-muted-foreground'}`}>
+            Items ({quotation.items.length})
+          </h5>
+          {renderItemsTable(quotation.items, changedFields.has('items') ? (isOriginal ? 'red' : 'green') : 'none')}
         </div>
       </div>
     );
@@ -230,7 +251,6 @@ export function QuotationEditHistoryDialog({
 
               <TabsContent value="comparison">
                 <div className="space-y-4">
-                  {/* Side-by-side comparison */}
                   <div className="grid grid-cols-2 gap-4">
                     {renderQuotationCard(originalQuotation, 'Original (First Created)', true)}
                     {renderQuotationCard(currentQuotation, 'Current (Final Version)', false)}
@@ -240,10 +260,9 @@ export function QuotationEditHistoryDialog({
                   <div className="rounded-lg border bg-muted/30 p-4">
                     <h4 className="font-semibold mb-3">Changes Summary</h4>
                     <div className="space-y-2">
-                      {Array.from(changedFields).map(field => {
+                      {Array.from(changedFields).filter(f => f !== 'items').map(field => {
                         const originalValue = originalQuotation?.[field as keyof QuotationWithItems];
                         const currentValue = currentQuotation?.[field as keyof QuotationWithItems];
-                        
                         return (
                           <div key={field} className="flex items-center gap-2 text-sm">
                             <Badge variant="outline">{getFieldLabel(field)}</Badge>
@@ -253,6 +272,12 @@ export function QuotationEditHistoryDialog({
                           </div>
                         );
                       })}
+                      {changedFields.has('items') && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <Badge variant="outline">Items</Badge>
+                          <span className="text-muted-foreground">Item details changed (see above for full comparison)</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -261,25 +286,27 @@ export function QuotationEditHistoryDialog({
               <TabsContent value="timeline">
                 <div className="space-y-4">
                   {history.map((entry, index) => (
-                    <div
-                      key={entry.id}
-                      className="rounded-lg border bg-card overflow-hidden"
-                    >
+                    <div key={entry.id} className="rounded-lg border bg-card overflow-hidden">
                       <div className="flex justify-between items-center p-3 bg-muted/50 border-b">
-                        <Badge variant="outline">
-                          Edit #{history.length - index}
-                        </Badge>
+                        <Badge variant="outline">Edit #{history.length - index}</Badge>
                         <span className="text-sm text-muted-foreground">
                           {format(new Date(entry.edited_at), 'MMM d, yyyy HH:mm')}
                         </span>
                       </div>
-                      
                       <div className="grid grid-cols-2 divide-x">
                         <div className="p-3">
                           <h5 className="text-xs font-semibold text-muted-foreground mb-2 uppercase">Before</h5>
                           <div className="space-y-1">
                             {Object.entries(entry.changes).map(([field, change]) => {
                               const typedChange = change as { old: unknown; new: unknown };
+                              if (field === 'items' && Array.isArray(typedChange.old)) {
+                                return (
+                                  <div key={field}>
+                                    <span className="text-muted-foreground text-sm">Items:</span>
+                                    {renderItemsTable(typedChange.old as QuotationItem[], 'red')}
+                                  </div>
+                                );
+                              }
                               return (
                                 <div key={field} className="text-sm">
                                   <span className="text-muted-foreground">{getFieldLabel(field)}:</span>
@@ -294,6 +321,14 @@ export function QuotationEditHistoryDialog({
                           <div className="space-y-1">
                             {Object.entries(entry.changes).map(([field, change]) => {
                               const typedChange = change as { old: unknown; new: unknown };
+                              if (field === 'items' && Array.isArray(typedChange.new)) {
+                                return (
+                                  <div key={field}>
+                                    <span className="text-muted-foreground text-sm">Items:</span>
+                                    {renderItemsTable(typedChange.new as QuotationItem[], 'green')}
+                                  </div>
+                                );
+                              }
                               return (
                                 <div key={field} className="text-sm">
                                   <span className="text-muted-foreground">{getFieldLabel(field)}:</span>
