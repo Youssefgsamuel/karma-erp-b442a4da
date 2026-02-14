@@ -16,6 +16,7 @@ import { QuotationAvailabilityInfo } from '@/components/quotations/QuotationAvai
 import { useQuotations, useCreateQuotation, useUpdateQuotationStatus, useDeleteQuotation, Quotation, CreateQuotationInput } from '@/hooks/useQuotations';
 import { useProducts } from '@/hooks/useProducts';
 import { useRawMaterials } from '@/hooks/useRawMaterials';
+import { useManufacturingOrders } from '@/hooks/useManufacturingOrders';
 import { useCategories } from '@/hooks/useCategories';
 import { useRawMaterialCategories } from '@/hooks/useRawMaterialCategories';
 import { QuotationEditHistoryDialog } from '@/components/quotations/QuotationEditHistoryDialog';
@@ -39,6 +40,7 @@ export default function Quotations() {
   const { data: rawMaterials = [] } = useRawMaterials();
   const { data: categories = [] } = useCategories();
   const { data: rawMaterialCategories = [] } = useRawMaterialCategories();
+  const { data: manufacturingOrders = [] } = useManufacturingOrders();
   const createQuotation = useCreateQuotation();
   const updateStatus = useUpdateQuotationStatus();
   const deleteQuotation = useDeleteQuotation();
@@ -84,9 +86,14 @@ export default function Quotations() {
     const productItems = formData.items.filter(item => item.product_id);
     if (productItems.length === 0) return { allInStock: false, partialInStock: false, items: [] };
     
+    const activeMOs = manufacturingOrders.filter(mo => 
+      ['planned', 'in_progress', 'under_qc'].includes(mo.status)
+    );
+    
     const itemsWithAvailability = productItems.map(item => {
       const product = products.find(p => p.id === item.product_id);
-      const inStock = product ? Number(product.current_stock) >= item.quantity : false;
+      const available = product ? Number(product.current_stock) - Number(product.assigned_quantity || 0) : 0;
+      const inStock = available >= item.quantity;
       return { ...item, product, inStock, available: product?.current_stock || 0 };
     });
     
@@ -94,7 +101,14 @@ export default function Quotations() {
     const partialInStock = itemsWithAvailability.some(item => item.inStock);
     
     return { allInStock, partialInStock, items: itemsWithAvailability };
-  }, [formData.items, products]);
+  }, [formData.items, products, manufacturingOrders]);
+
+  // Active MOs for availability display
+  const activeMOsForAvailability = useMemo(() => {
+    return manufacturingOrders
+      .filter(mo => ['planned', 'in_progress', 'under_qc'].includes(mo.status))
+      .map(mo => ({ product_id: mo.product_id, quantity: Number(mo.quantity) }));
+  }, [manufacturingOrders]);
 
   const handleAddItem = () => {
     setFormData(prev => ({
@@ -261,22 +275,24 @@ export default function Quotations() {
               </DropdownMenuItem>
             </>
           )}
-          {q.status === 'sent' && (
-            <>
-              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: q.id, status: 'accepted', createMO: true })}>
-                <Check className="mr-2 h-4 w-4" /> Accept & Create MO (All Items)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: q.id, status: 'accepted', partialFulfillment: true })}>
-                <PackageCheck className="mr-2 h-4 w-4" /> Accept (Partial: Inventory + MO)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: q.id, status: 'accepted', createMO: false })}>
-                <PackageCheck className="mr-2 h-4 w-4" /> Accept (From Inventory Only)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: q.id, status: 'rejected' })}>
-                <X className="mr-2 h-4 w-4" /> Mark Rejected
-              </DropdownMenuItem>
-            </>
-          )}
+          {q.status === 'sent' && (() => {
+            // Check if all items can be fulfilled from inventory
+            const qItems = (q as any).items || [];
+            // We don't have items inline, so check products availability
+            return (
+              <>
+                <DropdownMenuItem onClick={() => updateStatus.mutate({ id: q.id, status: 'accepted', partialFulfillment: true })}>
+                  <PackageCheck className="mr-2 h-4 w-4" /> Accept (Auto: Inventory + MO if needed)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateStatus.mutate({ id: q.id, status: 'accepted', createMO: true })}>
+                  <Check className="mr-2 h-4 w-4" /> Accept & Create MO (All Items)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateStatus.mutate({ id: q.id, status: 'rejected' })}>
+                  <X className="mr-2 h-4 w-4" /> Mark Rejected
+                </DropdownMenuItem>
+              </>
+            );
+          })()}
           <DropdownMenuItem onClick={() => deleteQuotation.mutate(q.id)} className="text-destructive">
             <Trash2 className="mr-2 h-4 w-4" /> Delete
           </DropdownMenuItem>
@@ -525,6 +541,7 @@ export default function Quotations() {
                 current_stock: Number(p.current_stock),
                 assigned_quantity: Number(p.assigned_quantity),
               }))}
+              existingMOs={activeMOsForAvailability}
             />
 
             <div className="bg-muted p-4 rounded-lg space-y-1 text-sm">

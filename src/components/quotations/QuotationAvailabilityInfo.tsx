@@ -16,12 +16,18 @@ interface Product {
   assigned_quantity: number;
 }
 
+interface ManufacturingOrder {
+  product_id: string;
+  quantity: number;
+}
+
 interface QuotationAvailabilityInfoProps {
   items: QuotationItem[];
   products: Product[];
+  existingMOs?: ManufacturingOrder[];
 }
 
-export function QuotationAvailabilityInfo({ items, products }: QuotationAvailabilityInfoProps) {
+export function QuotationAvailabilityInfo({ items, products, existingMOs = [] }: QuotationAvailabilityInfoProps) {
   const availability = useMemo(() => {
     const productItems = items.filter(item => item.product_id);
     
@@ -34,8 +40,14 @@ export function QuotationAvailabilityInfo({ items, products }: QuotationAvailabi
       const currentStock = Number(product?.current_stock || 0);
       const assignedQty = Number(product?.assigned_quantity || 0);
       const availableStock = currentStock - assignedQty;
+      // Calculate already-in-production quantities from existing MOs
+      const inProductionQty = existingMOs
+        .filter(mo => mo.product_id === item.product_id)
+        .reduce((sum, mo) => sum + Number(mo.quantity), 0);
       const canFulfill = availableStock >= item.quantity;
-      const shortage = Math.max(0, item.quantity - availableStock);
+      // Shortage is only what's actually needed beyond inventory AND existing MOs
+      const rawShortage = Math.max(0, item.quantity - availableStock);
+      const shortage = Math.max(0, rawShortage - inProductionQty);
 
       return {
         ...item,
@@ -43,6 +55,7 @@ export function QuotationAvailabilityInfo({ items, products }: QuotationAvailabi
         currentStock,
         assignedQty,
         availableStock,
+        inProductionQty,
         canFulfill,
         shortage,
       };
@@ -122,12 +135,22 @@ export function QuotationAvailabilityInfo({ items, products }: QuotationAvailabi
                   ({item.currentStock} - {item.assignedQty} assigned)
                 </span>
               )}
+              {item.inProductionQty > 0 && (
+                <span className="text-xs text-blue-600 block">
+                  +{item.inProductionQty} in production
+                </span>
+              )}
             </span>
             <div className="text-right">
               {item.canFulfill ? (
                 <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                   <PackageCheck className="h-3 w-3 mr-1" />
                   In Stock
+                </Badge>
+              ) : item.shortage === 0 ? (
+                <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                  <Factory className="h-3 w-3 mr-1" />
+                  In Production
                 </Badge>
               ) : (
                 <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
