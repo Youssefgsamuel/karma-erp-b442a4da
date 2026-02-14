@@ -40,7 +40,7 @@ const statusColors: Record<SalesOrder['status'], string> = {
   delivered: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
   cancelled: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
   confirmed: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200',
-  ready_to_deliver: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200',
+  ready_to_deliver: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
 };
 
 const statusIcons: Record<SalesOrder['status'], React.ReactNode> = {
@@ -235,7 +235,7 @@ export default function Sales() {
       cell: (order) => (
         <Badge className={`${statusColors[order.status]} flex items-center gap-1 w-fit`}>
           {statusIcons[order.status]}
-          {order.status.replace(/_/g, ' ').charAt(0).toUpperCase() + order.status.replace(/_/g, ' ').slice(1)}
+          {order.status === 'ready_to_deliver' ? 'Ready to Ship' : order.status.replace(/_/g, ' ').charAt(0).toUpperCase() + order.status.replace(/_/g, ' ').slice(1)}
         </Badge>
       )
     },
@@ -291,10 +291,12 @@ export default function Sales() {
                 <CheckCircle className="mr-2 h-4 w-4" /> Mark Delivered
               </DropdownMenuItem>
             )}
-            {order.status === 'ready_to_deliver' && (
-              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: order.id, status: 'shipped', orderNumber: order.order_number })}>
-                <ShoppingCart className="mr-2 h-4 w-4" /> Ship Order
-              </DropdownMenuItem>
+      {order.status === 'ready_to_deliver' && (
+              <>
+                <DropdownMenuItem onClick={() => updateStatus.mutate({ id: order.id, status: 'shipped', orderNumber: order.order_number })}>
+                  <ShoppingCart className="mr-2 h-4 w-4" /> Ship Order
+                </DropdownMenuItem>
+              </>
             )}
             {(order.status === 'pending' || order.status === 'processing') && (
               <DropdownMenuItem 

@@ -16,7 +16,7 @@ const STATUSES = [
   { value: 'delivered', label: 'Delivered' },
   { value: 'cancelled', label: 'Cancelled' },
   { value: 'confirmed', label: 'Confirmed' },
-  { value: 'ready_to_deliver', label: 'Ready to Deliver' },
+  { value: 'ready_to_deliver', label: 'Ready to Ship' },
 ];
 
 const MONTHS = [

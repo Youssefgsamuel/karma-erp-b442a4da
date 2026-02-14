@@ -217,11 +217,11 @@ export function useAcceptQualityControl() {
         }
       }
 
-      // Update sales order to "completed" status if linked
+      // Update sales order to "ready to ship" status if linked
       if (mo.sales_order_id) {
         await supabase
           .from('sales_orders')
-          .update({ status: 'completed' })
+          .update({ status: 'ready_to_deliver' })
           .eq('id', mo.sales_order_id);
       }
 
