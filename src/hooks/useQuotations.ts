@@ -448,8 +448,8 @@ export function useUpdateQuotationStatus() {
           const allInStock = itemAnalysis.every(i => i.forMO === 0);
           const anyNeedMO = itemAnalysis.some(i => i.forMO > 0);
 
-          if (allInStock && !createMO && productItems.length > 0) {
-            // All in stock - fulfill from inventory
+          if ((allInStock && !createMO) || (partialFulfillment && allInStock)) {
+            // All in stock - fulfill entirely from inventory (no MO option)
             for (const item of itemAnalysis) {
               const newStock = item.available - item.fromInventory;
               await supabase

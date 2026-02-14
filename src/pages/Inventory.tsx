@@ -20,8 +20,10 @@ import { AssignedQuantityDialog } from '@/components/inventory/AssignedQuantityD
 import type { Product, RawMaterial } from '@/types/erp';
 import type { SemiFinishedGood } from '@/hooks/useSemiFinishedGoods';
 import { formatNumber, formatCurrency } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function Inventory() {
+  const { isAdmin } = useAuth();
   const { data: products = [], isLoading: productsLoading } = useProducts();
   const { data: materials = [], isLoading: materialsLoading } = useRawMaterials();
   const { data: semiFinishedGoods = [], isLoading: semiFinishedLoading } = useSemiFinishedGoods();
@@ -487,6 +489,17 @@ export default function Inventory() {
                 onChange={(e) => setProductFormData(prev => ({ ...prev, minimum_stock: Number(e.target.value) }))}
               />
             </div>
+            {isAdmin && (
+              <div className="space-y-2">
+                <Label htmlFor="product_assigned">Assigned Quantity</Label>
+                <Input
+                  id="product_assigned"
+                  type="number"
+                  value={productFormData.assigned_quantity}
+                  onChange={(e) => setProductFormData(prev => ({ ...prev, assigned_quantity: Number(e.target.value) }))}
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingProduct(null)}>Cancel</Button>

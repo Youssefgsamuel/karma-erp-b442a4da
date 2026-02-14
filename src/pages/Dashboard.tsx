@@ -15,9 +15,11 @@ import {
   DollarSign
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 export default function Dashboard() {
   const { profile } = useAuth();
+  const navigate = useNavigate();
   const { data: products = [], isLoading: productsLoading } = useProducts();
   const { data: rawMaterials = [], isLoading: materialsLoading } = useRawMaterials();
 
@@ -150,16 +152,16 @@ export default function Dashboard() {
                 { icon: Truck, label: 'Add Supplier', href: '/suppliers' },
                 { icon: TrendingUp, label: 'View Reports', href: '/finance' },
               ].map((action) => (
-                <a
+                <button
                   key={action.label}
-                  href={action.href}
-                  className="flex items-center gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted"
+                  onClick={() => navigate(action.href)}
+                  className="flex items-center gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted text-left"
                 >
                   <div className="rounded-lg bg-primary/10 p-2">
                     <action.icon className="h-5 w-5 text-primary" />
                   </div>
                   <span className="text-sm font-medium">{action.label}</span>
-                </a>
+                </button>
               ))}
             </div>
           </CardContent>
