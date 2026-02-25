@@ -214,7 +214,7 @@ export default function Quotations() {
 
   const displayedQuotations = useMemo(() => {
     if (!showEditedOnly) return quotations;
-    return quotations.filter(q => ((q as any).edit_count || 0) > 0);
+    return quotations.filter(q => ((q as Quotation & { edit_count?: number }).edit_count || 0) > 0);
   }, [quotations, showEditedOnly]);
 
   const columns: Column<Quotation>[] = [
@@ -277,7 +277,7 @@ export default function Quotations() {
           )}
           {q.status === 'sent' && (() => {
             // Check if all items can be fulfilled from inventory
-            const qItems = (q as any).items || [];
+            const qItems = (q as Quotation & { items?: unknown[] }).items || [];
             // We don't have items inline, so check products availability
             return (
               <>

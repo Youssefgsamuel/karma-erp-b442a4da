@@ -570,7 +570,7 @@ export default function Manufacturing() {
                           <span className="text-sm">Qty: {formatNumber(item.quantity)}</span>
                           <Select 
                             value={item.status} 
-                            onValueChange={(v) => handleItemStatusChange(item, v as any)}
+                            onValueChange={(v) => handleItemStatusChange(item, v as 'pending' | 'in_progress' | 'completed')}
                             disabled={updateItemStatus.isPending}
                           >
                             <SelectTrigger className="w-[130px]">

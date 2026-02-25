@@ -233,7 +233,7 @@ export default function QualityControl() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'all' | 'under_review' | 'accepted' | 'rejected')}>
         <TabsList className="mb-4">
           <TabsTrigger value="under_review">
             Under Review ({counts?.under_review || 0})

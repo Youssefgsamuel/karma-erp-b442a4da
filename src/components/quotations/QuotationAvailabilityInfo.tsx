@@ -74,7 +74,7 @@ export function QuotationAvailabilityInfo({ items, products, existingMOs = [] }:
     }
 
     return { type, items: itemsWithAvailability, inStock, needMO };
-  }, [items, products]);
+  }, [items, products, existingMOs]);
 
   if (availability.type === 'none') return null;
 

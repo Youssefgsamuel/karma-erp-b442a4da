@@ -18,7 +18,7 @@ export function useSalaries() {
         .order('month', { ascending: false });
       
       if (error) throw error;
-      return data as (Salary & { employee: any; job_category: JobCategory | null; employee_name: string | null })[];
+      return data as unknown as (Salary & { employee: { full_name: string } | null; job_category: JobCategory | null; employee_name: string | null })[];
     },
   });
 }

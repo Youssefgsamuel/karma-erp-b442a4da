@@ -296,11 +296,11 @@ export function useRejectQualityControl() {
         .in('role', ['admin', 'manufacture_manager']);
 
       if (adminUsers && adminUsers.length > 0) {
-        const mo = qcRecord.manufacturing_order as any;
+        const mo = qcRecord.manufacturing_order as { mo_number: string } | null;
         const notifications = adminUsers.map((u: { user_id: string }) => ({
           user_id: u.user_id,
           title: 'Quality Control Rejected',
-          message: `MO ${mo.mo_number} failed quality control: ${rejectionReason}`,
+          message: `MO ${mo?.mo_number || 'Unknown'} failed quality control: ${rejectionReason}`,
           type: 'error' as const,
           reference_type: 'quality_control',
           reference_id: qcId,

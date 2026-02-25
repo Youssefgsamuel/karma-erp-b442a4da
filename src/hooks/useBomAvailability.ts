@@ -52,7 +52,13 @@ export function useBomAvailability(productId: string, quantity: number = 1) {
         };
       }
 
-      const materials: MaterialAvailability[] = bomItems.map((item: any) => {
+      const typedBomItems = bomItems as unknown as Array<{
+        quantity: number;
+        raw_material_id: string;
+        raw_material: { name: string; current_stock: number } | null;
+      }>;
+
+      const materials: MaterialAvailability[] = typedBomItems.map((item) => {
         const requiredQty = Number(item.quantity) * quantity;
         const availableQty = Number(item.raw_material?.current_stock || 0);
         const shortage = Math.max(0, requiredQty - availableQty);

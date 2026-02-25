@@ -90,9 +90,10 @@ export default function Salaries() {
 
   // Filter salaries by search query and selected categories
   const filteredSalaries = salaries.filter((s) => {
+    const salaryWithOptionalName = s as Salary & { employee_name?: string };
     const matchesSearch = 
       s.employee?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (s as any).employee_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      salaryWithOptionalName.employee_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.employee_number.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesCategory = 
@@ -135,9 +136,10 @@ export default function Salaries() {
 
   const handleEdit = (salary: Salary) => {
     setEditingSalary(salary);
+    const salaryWithOptionalName = salary as Salary & { employee_name?: string };
     setFormData({
       employee_id: salary.employee_id || '',
-      employee_name: (salary as any).employee_name || salary.employee?.full_name || '',
+      employee_name: salaryWithOptionalName.employee_name || salary.employee?.full_name || '',
       employee_number: salary.employee_number,
       work_location: salary.work_location || '',
       job_category_id: salary.job_category_id || '',
@@ -220,16 +222,19 @@ export default function Salaries() {
     cancelled: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
   };
 
-  const columns: Column<Salary & { employee: any; job_category: JobCategory | null }>[] = [
+  const columns: Column<Salary & { employee: { full_name: string } | null; job_category: JobCategory | null }>[] = [
     {
       key: 'employee',
       header: 'Employee',
-      cell: (item) => (
-        <div>
-          <p className="font-medium">{(item as any).employee_name || item.employee?.full_name || 'Unknown'}</p>
-          <p className="text-sm text-muted-foreground">#{item.employee_number}</p>
-        </div>
-      ),
+      cell: (item) => {
+        const itemWithOptionalName = item as Salary & { employee_name?: string; employee?: { full_name: string } };
+        return (
+          <div>
+            <p className="font-medium">{itemWithOptionalName.employee_name || item.employee?.full_name || 'Unknown'}</p>
+            <p className="text-sm text-muted-foreground">#{item.employee_number}</p>
+          </div>
+        );
+      },
     },
     {
       key: 'period',

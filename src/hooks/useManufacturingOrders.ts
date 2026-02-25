@@ -103,7 +103,12 @@ async function checkAndNotifyShortages(productId: string, quantity: number, moNu
 
   const shortages: { name: string; shortage: number }[] = [];
   
-  for (const item of bomItems as any[]) {
+  const typedBomItems = bomItems as unknown as Array<{
+    quantity: number;
+    raw_material: { id: string; name: string; current_stock: number } | null;
+  }>;
+
+  for (const item of typedBomItems) {
     const requiredQty = Number(item.quantity) * Number(quantity);
     const availableQty = Number(item.raw_material?.current_stock || 0);
     const shortage = requiredQty - availableQty;

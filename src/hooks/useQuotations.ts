@@ -260,8 +260,8 @@ export function useUpdateQuotation() {
         .order('created_at', { ascending: true });
 
       // Track changes
-      const changes: Record<string, any> = {};
-      const previousValues: Record<string, any> = {};
+      const changes: Record<string, unknown> = {};
+      const previousValues: Record<string, unknown> = {};
 
       if (currentQuotation) {
         if (currentQuotation.customer_name !== input.customer_name) {

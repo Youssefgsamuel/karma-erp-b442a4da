@@ -54,7 +54,7 @@ export function Sidebar() {
 
   const filteredNavItems = navItems.filter(item => {
     if (!item.roles) return true;
-    return item.roles.some(role => hasRole(role as any));
+    return item.roles.some(role => hasRole(role));
   });
 
   return (
