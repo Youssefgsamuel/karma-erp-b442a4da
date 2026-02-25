@@ -1,13 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface ManufacturingOrder {
   id: string;
   mo_number: string;
   product_id: string;
   quantity: number;
-  status: 'planned' | 'in_progress' | 'under_qc' | 'completed' | 'qc_rejected' | 'closed' | 'cancelled';
+  status: 'planned' | 'in_progress' | 'under_qc' | 'completed' | 'qc_rejected' | 'closed' | 'cancelled' | 'ready_to_ship';
   priority: 'low' | 'normal' | 'high' | 'urgent';
   sales_order_id: string | null;
   quotation_id: string | null;
@@ -102,7 +103,12 @@ async function checkAndNotifyShortages(productId: string, quantity: number, moNu
 
   const shortages: { name: string; shortage: number }[] = [];
   
-  for (const item of bomItems as any[]) {
+  const typedBomItems = bomItems as unknown as Array<{
+    quantity: number;
+    raw_material: { id: string; name: string; current_stock: number } | null;
+  }>;
+
+  for (const item of typedBomItems) {
     const requiredQty = Number(item.quantity) * Number(quantity);
     const availableQty = Number(item.raw_material?.current_stock || 0);
     const shortage = requiredQty - availableQty;
@@ -294,9 +300,14 @@ export function useUpdateManufacturingOrder() {
 
 export function useDeleteManufacturingOrder() {
   const queryClient = useQueryClient();
+  const { hasRole } = useAuth();
 
   return useMutation({
     mutationFn: async (input: string | { id: string; reason?: string }) => {
+      if (!hasRole('admin')) {
+        throw new Error('Only administrators can delete manufacturing orders');
+      }
+
       const moId = typeof input === 'string' ? input : input.id;
       const deletionReason = typeof input === 'string' ? undefined : input.reason;
 

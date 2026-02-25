@@ -31,6 +31,7 @@ const statusColors: Record<ManufacturingOrder['status'], string> = {
   completed: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
   qc_rejected: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
   closed: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  ready_to_ship: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
   cancelled: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
 };
 
@@ -127,10 +128,10 @@ export default function Manufacturing() {
 
   // Separate active and completed orders
   const activeOrders = allOrders.filter(mo => 
-    !['completed', 'under_qc', 'closed', 'qc_rejected', 'cancelled'].includes(mo.status)
+    !['completed', 'under_qc', 'closed', 'qc_rejected', 'cancelled', 'ready_to_ship'].includes(mo.status)
   );
   const completedOrders = allOrders.filter(mo => 
-    ['completed', 'under_qc', 'closed', 'qc_rejected', 'cancelled'].includes(mo.status)
+    ['completed', 'under_qc', 'closed', 'qc_rejected', 'cancelled', 'ready_to_ship'].includes(mo.status)
   );
 
   const displayOrders = activeTab === 'active' ? activeOrders : completedOrders;
@@ -327,7 +328,7 @@ export default function Manufacturing() {
               )}
             </>
           )}
-          {activeTab === 'completed' && ['completed', 'closed', 'cancelled'].includes(mo.status) && (
+          {activeTab === 'completed' && ['completed', 'closed', 'cancelled', 'qc_rejected', 'ready_to_ship'].includes(mo.status) && (
             <DropdownMenuItem onClick={() => handleDeleteMO(mo)} className="text-destructive">
               <Trash2 className="mr-2 h-4 w-4" /> Delete
             </DropdownMenuItem>
@@ -569,7 +570,7 @@ export default function Manufacturing() {
                           <span className="text-sm">Qty: {formatNumber(item.quantity)}</span>
                           <Select 
                             value={item.status} 
-                            onValueChange={(v) => handleItemStatusChange(item, v as any)}
+                            onValueChange={(v) => handleItemStatusChange(item, v as 'pending' | 'in_progress' | 'completed')}
                             disabled={updateItemStatus.isPending}
                           >
                             <SelectTrigger className="w-[130px]">

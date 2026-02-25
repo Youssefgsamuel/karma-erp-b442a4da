@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { Profile, AppRole } from '@/types/erp';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface UserWithRoles extends Profile {
   roles: AppRole[];
@@ -36,6 +37,50 @@ export function useUsers() {
       }));
 
       return usersWithRoles;
+    },
+  });
+}
+
+export function useDeleteUser() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { hasRole } = useAuth();
+
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      if (!hasRole('admin')) {
+        throw new Error('Only administrators can delete users');
+      }
+      // Delete user roles first (RLS or Cascade should handle this usually, but being explicit)
+      await supabase
+        .from('user_roles')
+        .delete()
+        .eq('user_id', userId);
+
+      // Delete profile
+      const { error } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      // Note: Full auth.users deletion usually requires service role or a specific function
+      // For this ERP, deleting the profile and roles effectively "removes" them from the system.
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast({
+        title: 'User Deleted',
+        description: 'The user profile and roles have been permanently deleted.',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.message,
+      });
     },
   });
 }

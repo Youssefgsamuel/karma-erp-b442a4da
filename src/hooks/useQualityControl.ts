@@ -120,21 +120,21 @@ export function useAcceptQualityControl() {
 
       if (updateQcError) throw updateQcError;
 
-      // Update MO status to closed
+      // Update MO status to ready_to_ship
       const { error: updateMoError } = await supabase
         .from('manufacturing_orders')
-        .update({ status: 'closed' })
+        .update({ status: 'ready_to_ship' })
         .eq('id', qcRecord.mo_id);
 
       if (updateMoError) throw updateMoError;
 
       const mo = qcRecord.manufacturing_order as { sales_order_id: string | null; mo_number: string; quotation_id: string | null };
 
-      // Update product assignments to completed
+      // Update product assignments to pending (reserved from stock)
       if (mo.quotation_id) {
         await supabase
           .from('product_assignments')
-          .update({ status: 'completed' })
+          .update({ status: 'pending' })
           .eq('mo_id', qcRecord.mo_id);
 
         // Recalculate assigned_quantity for affected products
@@ -296,11 +296,11 @@ export function useRejectQualityControl() {
         .in('role', ['admin', 'manufacture_manager']);
 
       if (adminUsers && adminUsers.length > 0) {
-        const mo = qcRecord.manufacturing_order as any;
+        const mo = qcRecord.manufacturing_order as { mo_number: string } | null;
         const notifications = adminUsers.map((u: { user_id: string }) => ({
           user_id: u.user_id,
           title: 'Quality Control Rejected',
-          message: `MO ${mo.mo_number} failed quality control: ${rejectionReason}`,
+          message: `MO ${mo?.mo_number || 'Unknown'} failed quality control: ${rejectionReason}`,
           type: 'error' as const,
           reference_type: 'quality_control',
           reference_id: qcId,

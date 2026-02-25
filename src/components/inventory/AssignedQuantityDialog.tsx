@@ -43,7 +43,16 @@ function useActiveAssignments(productId: string) {
 
       if (error) throw error;
 
-      return (data || []).map((item: any) => ({
+      const typedData = data as unknown as Array<{
+        id: string;
+        quantity: number;
+        status: string;
+        created_at: string;
+        quotation: { quotation_number: string } | null;
+        manufacturing_order: { mo_number: string } | null;
+      }>;
+
+      return (typedData || []).map((item) => ({
         id: item.id,
         quantity: item.quantity,
         status: item.status,

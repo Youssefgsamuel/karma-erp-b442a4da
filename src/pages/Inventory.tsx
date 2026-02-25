@@ -317,7 +317,7 @@ export default function Inventory() {
       key: 'mo',
       header: 'MO',
       cell: (item) => item.manufacturing_order ? (
-        <Badge variant="outline">{(item.manufacturing_order as any).mo_number}</Badge>
+        <Badge variant="outline">{item.manufacturing_order.mo_number}</Badge>
       ) : (
         <span className="text-muted-foreground">-</span>
       ),

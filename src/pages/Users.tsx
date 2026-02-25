@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useUsers, useCreateUser, useUpdateUserRoles, useDeactivateUser, useReactivateUser, useApproveUser, UserWithRoles } from '@/hooks/useUsers';
+import { useUsers, useCreateUser, useUpdateUserRoles, useDeactivateUser, useReactivateUser, useApproveUser, useDeleteUser, UserWithRoles } from '@/hooks/useUsers';
 import { useAuth } from '@/contexts/AuthContext';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable, Column } from '@/components/ui/data-table';
@@ -26,6 +26,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Users, Plus, MoreHorizontal, Shield, Search, UserCog, UserX, UserCheck, Clock, CheckCircle } from 'lucide-react';
 import type { AppRole } from '@/types/erp';
 
@@ -55,8 +65,10 @@ export default function UsersPage() {
   const deactivateUser = useDeactivateUser();
   const reactivateUser = useReactivateUser();
   const approveUser = useApproveUser();
+  const deleteUser = useDeleteUser();
   const [isOpen, setIsOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserWithRoles | null>(null);
+  const [userToDelete, setUserToDelete] = useState<UserWithRoles | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState({
     email: '',
@@ -188,6 +200,13 @@ export default function UsersPage() {
                 Reactivate User
               </DropdownMenuItem>
             )}
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={() => setUserToDelete(item)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete User
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       ),
@@ -424,6 +443,32 @@ export default function UsersPage() {
               isLoading={isLoading}
               emptyMessage="No approved users found."
             />
+
+            {/* User Delete Confirmation */}
+            <AlertDialog open={!!userToDelete} onOpenChange={() => setUserToDelete(null)}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Permanently Delete User?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to delete user "{userToDelete?.full_name}"? This action cannot be undone and will remove all their system access and role assignments.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => {
+                      if (userToDelete) {
+                        deleteUser.mutate(userToDelete.user_id);
+                        setUserToDelete(null);
+                      }
+                    }}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </TabsContent>
 
           <TabsContent value="pending">

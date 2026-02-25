@@ -195,7 +195,7 @@ export function QuotationEditHistoryDialog({
           {fields.map(({ key, label, format: fmt, bold }) => {
             const value = (quotation as unknown as Record<string, unknown>)[key];
             if (value === null || value === undefined) return null;
-            const displayed = fmt ? (fmt as (v: any) => string)(value) : String(value);
+            const displayed = fmt ? (fmt as (v: unknown) => string)(value) : String(value);
             return (
               <div key={key} className={`grid grid-cols-2 gap-2 ${bold ? 'font-semibold' : ''}`}>
                 <span className="text-muted-foreground">{label}:</span>
