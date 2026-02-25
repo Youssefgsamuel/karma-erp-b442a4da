@@ -130,11 +130,11 @@ export function useAcceptQualityControl() {
 
       const mo = qcRecord.manufacturing_order as { sales_order_id: string | null; mo_number: string; quotation_id: string | null };
 
-      // Update product assignments to completed
+      // Update product assignments to pending (reserved from stock)
       if (mo.quotation_id) {
         await supabase
           .from('product_assignments')
-          .update({ status: 'completed' })
+          .update({ status: 'pending' })
           .eq('mo_id', qcRecord.mo_id);
 
         // Recalculate assigned_quantity for affected products

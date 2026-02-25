@@ -128,10 +128,10 @@ export default function Manufacturing() {
 
   // Separate active and completed orders
   const activeOrders = allOrders.filter(mo => 
-    !['completed', 'under_qc', 'closed', 'qc_rejected', 'cancelled'].includes(mo.status)
+    !['completed', 'under_qc', 'closed', 'qc_rejected', 'cancelled', 'ready_to_ship'].includes(mo.status)
   );
   const completedOrders = allOrders.filter(mo => 
-    ['completed', 'under_qc', 'closed', 'qc_rejected', 'cancelled'].includes(mo.status)
+    ['completed', 'under_qc', 'closed', 'qc_rejected', 'cancelled', 'ready_to_ship'].includes(mo.status)
   );
 
   const displayOrders = activeTab === 'active' ? activeOrders : completedOrders;
@@ -328,7 +328,7 @@ export default function Manufacturing() {
               )}
             </>
           )}
-          {activeTab === 'completed' && ['completed', 'closed', 'cancelled'].includes(mo.status) && (
+          {activeTab === 'completed' && ['completed', 'closed', 'cancelled', 'qc_rejected', 'ready_to_ship'].includes(mo.status) && (
             <DropdownMenuItem onClick={() => handleDeleteMO(mo)} className="text-destructive">
               <Trash2 className="mr-2 h-4 w-4" /> Delete
             </DropdownMenuItem>
