@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useUsers, useCreateUser, useUpdateUserRoles, useDeactivateUser, useReactivateUser, useApproveUser, UserWithRoles } from '@/hooks/useUsers';
+import { useUsers, useCreateUser, useUpdateUserRoles, useDeactivateUser, useReactivateUser, useApproveUser, useDeleteUser, UserWithRoles } from '@/hooks/useUsers';
 import { useAuth } from '@/contexts/AuthContext';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable, Column } from '@/components/ui/data-table';
@@ -55,6 +55,7 @@ export default function UsersPage() {
   const deactivateUser = useDeactivateUser();
   const reactivateUser = useReactivateUser();
   const approveUser = useApproveUser();
+  const deleteUser = useDeleteUser();
   const [isOpen, setIsOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserWithRoles | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -188,6 +189,17 @@ export default function UsersPage() {
                 Reactivate User
               </DropdownMenuItem>
             )}
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={() => {
+                if (window.confirm(`Permanently delete user ${item.full_name}?`)) {
+                  deleteUser.mutate(item.user_id);
+                }
+              }}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete User
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       ),

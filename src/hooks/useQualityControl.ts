@@ -120,10 +120,10 @@ export function useAcceptQualityControl() {
 
       if (updateQcError) throw updateQcError;
 
-      // Update MO status to closed
+      // Update MO status to ready_to_ship
       const { error: updateMoError } = await supabase
         .from('manufacturing_orders')
-        .update({ status: 'closed' })
+        .update({ status: 'ready_to_ship' })
         .eq('id', qcRecord.mo_id);
 
       if (updateMoError) throw updateMoError;

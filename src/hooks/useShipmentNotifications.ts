@@ -77,6 +77,33 @@ export async function processShipment(
   // Release assigned quantities
   await releaseAssignmentsForSalesOrder(orderId);
 
+  // Decrement product stock
+  for (const item of shippedItems) {
+    const { data: product } = await supabase
+      .from('products')
+      .select('current_stock')
+      .eq('id', item.product_id)
+      .single();
+
+    if (product) {
+      const newStock = Math.max(0, Number(product.current_stock) - item.quantity);
+      await supabase
+        .from('products')
+        .update({ current_stock: newStock })
+        .eq('id', item.product_id);
+
+      // Record inventory transaction
+      await supabase.from('inventory_transactions').insert({
+        product_id: item.product_id,
+        transaction_type: 'out' as const,
+        quantity: item.quantity,
+        reference_type: 'sales_order',
+        reference_id: orderId,
+        notes: `Shipped for order ${orderNumber}`,
+      });
+    }
+  }
+
   // Send notifications
   if (shippedItems.length > 0) {
     await sendShipmentNotifications(orderNumber, orderId, shippedItems);

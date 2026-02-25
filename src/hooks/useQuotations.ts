@@ -449,23 +449,11 @@ export function useUpdateQuotationStatus() {
           const anyNeedMO = itemAnalysis.some(i => i.forMO > 0);
 
           if ((allInStock && !createMO) || (partialFulfillment && allInStock)) {
-            // All in stock - fulfill entirely from inventory (no MO option)
-            for (const item of itemAnalysis) {
-              const newStock = item.available - item.fromInventory;
-              await supabase
-                .from('products')
-                .update({ current_stock: newStock })
-                .eq('id', item.product_id);
-              
-              await supabase.from('inventory_transactions').insert({
-                product_id: item.product_id,
-                transaction_type: 'out',
-                quantity: item.quantity,
-                notes: `Fulfilled from inventory for SO ${order_number}`,
-                reference_type: 'sales_order',
-                reference_id: salesOrder.id,
-              });
-            }
+            // All in stock - reserve from inventory by creating pending assignments
+            await createProductAssignments(id, itemAnalysis.map(item => ({
+              product_id: item.product_id,
+              quantity: item.quantity,
+            })));
             
             await supabase
               .from('sales_orders')
@@ -473,26 +461,12 @@ export function useUpdateQuotationStatus() {
               .eq('id', salesOrder.id);
           } else if (partialFulfillment || (anyNeedMO && !createMO)) {
             // Partial fulfillment: take what's available from inventory, MO for the rest
-            // Deduct available inventory for ALL items (partial amounts)
-            for (const item of itemAnalysis) {
-              if (item.fromInventory > 0) {
-                const newStock = item.available - item.fromInventory;
-                await supabase
-                  .from('products')
-                  .update({ current_stock: newStock })
-                  .eq('id', item.product_id);
-                
-                await supabase.from('inventory_transactions').insert({
-                  product_id: item.product_id,
-                  transaction_type: 'out',
-                  quantity: item.fromInventory,
-                  notes: `Partial fulfillment (${item.fromInventory}/${item.quantity}) from inventory for SO ${order_number}`,
-                  reference_type: 'sales_order',
-                  reference_id: salesOrder.id,
-                });
-              }
-            }
-            
+            // Create assignments for ALL items
+            await createProductAssignments(id, itemAnalysis.map(item => ({
+              product_id: item.product_id,
+              quantity: item.quantity,
+            })));
+
             // Create MO for remaining quantities
             const itemsForMO = itemAnalysis.filter(i => i.forMO > 0);
             if (itemsForMO.length > 0) {
@@ -527,16 +501,14 @@ export function useUpdateQuotationStatus() {
                 await supabase.from('mo_items').insert(additionalItems);
               }
 
-              // Create product assignments for MO quantities only
-              await createProductAssignments(id, itemsForMO.map(item => ({
-                product_id: item.product_id,
-                quantity: item.forMO,
-              })));
-
-              await supabase
-                .from('product_assignments')
-                .update({ status: 'in_production', mo_id: moData.id })
-                .eq('quotation_id', id);
+              // Link ONLY the items that are in this MO
+              for (const item of itemsForMO) {
+                await supabase
+                  .from('product_assignments')
+                  .update({ status: 'in_production', mo_id: moData.id })
+                  .eq('quotation_id', id)
+                  .eq('product_id', item.product_id);
+              }
             }
           } else if (createMO && productItems.length > 0) {
             // Create MO for all items (user explicitly chose)
