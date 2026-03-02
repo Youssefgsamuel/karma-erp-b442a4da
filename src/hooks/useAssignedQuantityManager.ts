@@ -23,22 +23,22 @@ export async function recalculateAssignedQuantity(productId: string) {
  * Release assigned quantities when a quotation is cancelled or rejected
  */
 export async function releaseAssignmentsForQuotation(quotationId: string) {
-  // Get all assignments for this quotation
+  // Get all assignments for this quotation (all statuses) so we can always recalculate
   const { data: assignments } = await supabase
     .from('product_assignments')
-    .select('id, product_id')
-    .eq('quotation_id', quotationId)
-    .in('status', ['pending', 'in_production']);
+    .select('product_id')
+    .eq('quotation_id', quotationId);
 
   if (!assignments || assignments.length === 0) return;
 
-  // Mark all as completed (released)
+  // Mark active assignments as completed (released)
   await supabase
     .from('product_assignments')
     .update({ status: 'completed' })
-    .eq('quotation_id', quotationId);
+    .eq('quotation_id', quotationId)
+    .in('status', ['pending', 'in_production']);
 
-  // Recalculate for each affected product
+  // Recalculate for each affected product (even if already completed)
   const productIds = [...new Set(assignments.map(a => a.product_id))];
   for (const productId of productIds) {
     await recalculateAssignedQuantity(productId);

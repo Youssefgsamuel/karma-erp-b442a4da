@@ -21,7 +21,7 @@ interface SalesOrder {
   quotation_id: string | null;
   customer_id: string | null;
   customer_name: string;
-  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'confirmed' | 'ready_to_deliver';
+  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'confirmed' | 'ready_to_deliver' | 'completed';
   order_date: string;
   due_date: string | null;
   subtotal: number;
@@ -41,6 +41,7 @@ const statusColors: Record<SalesOrder['status'], string> = {
   cancelled: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
   confirmed: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200',
   ready_to_deliver: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+  completed: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
 };
 
 const statusIcons: Record<SalesOrder['status'], React.ReactNode> = {
@@ -51,6 +52,7 @@ const statusIcons: Record<SalesOrder['status'], React.ReactNode> = {
   cancelled: <XCircle className="h-3 w-3" />,
   confirmed: <CheckCircle className="h-3 w-3" />,
   ready_to_deliver: <Package className="h-3 w-3" />,
+  completed: <Package className="h-3 w-3" />,
 };
 
 function useSalesOrders(includeDeleted = false) {
@@ -235,7 +237,7 @@ export default function Sales() {
       cell: (order) => (
         <Badge className={`${statusColors[order.status]} flex items-center gap-1 w-fit`}>
           {statusIcons[order.status]}
-          {order.status === 'ready_to_deliver' ? 'Ready to Ship' : order.status.replace(/_/g, ' ').charAt(0).toUpperCase() + order.status.replace(/_/g, ' ').slice(1)}
+          {order.status === 'ready_to_deliver' || order.status === 'completed' ? 'Ready to Ship' : order.status.replace(/_/g, ' ').charAt(0).toUpperCase() + order.status.replace(/_/g, ' ').slice(1)}
         </Badge>
       )
     },
@@ -281,7 +283,7 @@ export default function Sales() {
                 <Package className="mr-2 h-4 w-4" /> Start Processing
               </DropdownMenuItem>
             )}
-            {order.status === 'processing' && (
+            {(order.status === 'ready_to_deliver' || order.status === 'completed') && (
               <DropdownMenuItem onClick={() => updateStatus.mutate({ id: order.id, status: 'shipped', orderNumber: order.order_number })}>
                 <ShoppingCart className="mr-2 h-4 w-4" /> Ship Order
               </DropdownMenuItem>
@@ -290,13 +292,6 @@ export default function Sales() {
               <DropdownMenuItem onClick={() => updateStatus.mutate({ id: order.id, status: 'delivered' })}>
                 <CheckCircle className="mr-2 h-4 w-4" /> Mark Delivered
               </DropdownMenuItem>
-            )}
-      {order.status === 'ready_to_deliver' && (
-              <>
-                <DropdownMenuItem onClick={() => updateStatus.mutate({ id: order.id, status: 'shipped', orderNumber: order.order_number })}>
-                  <ShoppingCart className="mr-2 h-4 w-4" /> Ship Order
-                </DropdownMenuItem>
-              </>
             )}
             {(order.status === 'pending' || order.status === 'processing') && (
               <DropdownMenuItem 
