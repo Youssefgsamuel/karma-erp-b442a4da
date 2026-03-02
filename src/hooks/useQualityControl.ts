@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { recalculateAssignedQuantity } from './useAssignedQuantityManager';
 
 export interface QualityControlRecord {
   id: string;
@@ -120,48 +121,9 @@ export function useAcceptQualityControl() {
 
       if (updateQcError) throw updateQcError;
 
-      // Update MO status to closed
-      const { error: updateMoError } = await supabase
-        .from('manufacturing_orders')
-        .update({ status: 'closed' })
-        .eq('id', qcRecord.mo_id);
-
-      if (updateMoError) throw updateMoError;
-
       const mo = qcRecord.manufacturing_order as { sales_order_id: string | null; mo_number: string; quotation_id: string | null };
 
-      // Update product assignments to completed
-      if (mo.quotation_id) {
-        await supabase
-          .from('product_assignments')
-          .update({ status: 'completed' })
-          .eq('mo_id', qcRecord.mo_id);
-
-        // Recalculate assigned_quantity for affected products
-        const { data: moItems } = await supabase
-          .from('mo_items')
-          .select('product_id')
-          .eq('mo_id', qcRecord.mo_id);
-
-        const productIds = [qcRecord.product_id, ...(moItems?.map(i => i.product_id) || [])];
-        
-        for (const productId of productIds) {
-          const { data: currentAssignments } = await supabase
-            .from('product_assignments')
-            .select('quantity')
-            .eq('product_id', productId)
-            .in('status', ['pending', 'in_production']);
-
-          const totalAssigned = currentAssignments?.reduce((sum, a) => sum + Number(a.quantity), 0) || 0;
-
-          await supabase
-            .from('products')
-            .update({ assigned_quantity: totalAssigned })
-            .eq('id', productId);
-        }
-      }
-
-      // Add finished goods to inventory
+      // Add finished goods to inventory for the accepted QC line only
       const { data: product } = await supabase
         .from('products')
         .select('current_stock')
@@ -175,7 +137,6 @@ export function useAcceptQualityControl() {
           .update({ current_stock: newStock })
           .eq('id', qcRecord.product_id);
 
-        // Record inventory transaction
         await supabase.from('inventory_transactions').insert({
           product_id: qcRecord.product_id,
           transaction_type: 'in' as const,
@@ -186,43 +147,47 @@ export function useAcceptQualityControl() {
         });
       }
 
-      // Also update stock for all mo_items
-      const { data: allMoItems } = await supabase
-        .from('mo_items')
-        .select('product_id, quantity')
+      // Only close MO / mark SO ready when all QC records are accepted
+      const { data: moQcRecords, error: moQcError } = await supabase
+        .from('quality_control_records')
+        .select('status')
         .eq('mo_id', qcRecord.mo_id);
 
-      for (const item of allMoItems || []) {
-        const { data: itemProduct } = await supabase
-          .from('products')
-          .select('current_stock')
-          .eq('id', item.product_id)
-          .single();
+      if (moQcError) throw moQcError;
 
-        if (itemProduct) {
-          const newStock = Number(itemProduct.current_stock) + Number(item.quantity);
+      const allAccepted = (moQcRecords || []).length > 0 && (moQcRecords || []).every((record) => record.status === 'accepted');
+
+      if (allAccepted) {
+        const { error: updateMoError } = await supabase
+          .from('manufacturing_orders')
+          .update({ status: 'closed' })
+          .eq('id', qcRecord.mo_id);
+
+        if (updateMoError) throw updateMoError;
+
+        if (mo.quotation_id) {
           await supabase
-            .from('products')
-            .update({ current_stock: newStock })
-            .eq('id', item.product_id);
+            .from('product_assignments')
+            .update({ status: 'completed' })
+            .eq('mo_id', qcRecord.mo_id);
 
-          await supabase.from('inventory_transactions').insert({
-            product_id: item.product_id,
-            transaction_type: 'in' as const,
-            quantity: item.quantity,
-            reference_type: 'quality_control',
-            reference_id: qcId,
-            notes: `QC Accepted for MO ${mo.mo_number}`,
-          });
+          const { data: assignmentProducts } = await supabase
+            .from('product_assignments')
+            .select('product_id')
+            .eq('mo_id', qcRecord.mo_id);
+
+          const productIds = [...new Set((assignmentProducts || []).map((assignment: { product_id: string }) => assignment.product_id))];
+          for (const productId of productIds) {
+            await recalculateAssignedQuantity(productId);
+          }
         }
-      }
 
-      // Update sales order to "ready to ship" status if linked
-      if (mo.sales_order_id) {
-        await supabase
-          .from('sales_orders')
-          .update({ status: 'ready_to_deliver' })
-          .eq('id', mo.sales_order_id);
+        if (mo.sales_order_id) {
+          await supabase
+            .from('sales_orders')
+            .update({ status: 'ready_to_deliver' })
+            .eq('id', mo.sales_order_id);
+        }
       }
 
       return qcRecord;

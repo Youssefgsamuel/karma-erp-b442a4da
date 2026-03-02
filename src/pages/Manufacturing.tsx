@@ -327,7 +327,7 @@ export default function Manufacturing() {
               )}
             </>
           )}
-          {activeTab === 'completed' && ['completed', 'closed', 'cancelled'].includes(mo.status) && (
+          {activeTab === 'completed' && ['completed', 'closed', 'cancelled', 'qc_rejected'].includes(mo.status) && (
             <DropdownMenuItem onClick={() => handleDeleteMO(mo)} className="text-destructive">
               <Trash2 className="mr-2 h-4 w-4" /> Delete
             </DropdownMenuItem>

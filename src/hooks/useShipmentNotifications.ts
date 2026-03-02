@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { recalculateAssignedQuantity, releaseAssignmentsForSalesOrder } from './useAssignedQuantityManager';
+import { releaseAssignmentsForSalesOrder } from './useAssignedQuantityManager';
 
 interface ShippedItem {
   product_id: string;
@@ -52,7 +52,7 @@ export async function processShipment(
   orderId: string,
   orderNumber: string
 ) {
-  // Get the quotation_id and items from sales order
+  // Get the quotation_id from sales order
   const { data: salesOrder } = await supabase
     .from('sales_orders')
     .select('quotation_id')
@@ -61,7 +61,7 @@ export async function processShipment(
 
   if (!salesOrder?.quotation_id) return;
 
-  // Get quotation items with product info
+  // Get quotation items with product info (for notification details)
   const { data: quotationItems } = await supabase
     .from('quotation_items')
     .select('product_id, quantity, description')
@@ -73,6 +73,51 @@ export async function processShipment(
     quantity: item.quantity,
     product_name: item.description,
   }));
+
+  // Deduct stock only for quantities that came from manufacturing assignments
+  // (inventory-only quantities are already deducted at quotation acceptance)
+  const { data: assignments } = await supabase
+    .from('product_assignments')
+    .select('product_id, quantity')
+    .eq('quotation_id', salesOrder.quotation_id);
+
+  const assignmentByProduct = (assignments || []).reduce<Record<string, number>>((acc, assignment) => {
+    const key = assignment.product_id;
+    if (!key) return acc;
+    acc[key] = (acc[key] || 0) + Number(assignment.quantity || 0);
+    return acc;
+  }, {});
+
+  for (const [productId, assignedQty] of Object.entries(assignmentByProduct)) {
+    if (assignedQty <= 0) continue;
+
+    const { data: product, error: productError } = await supabase
+      .from('products')
+      .select('current_stock')
+      .eq('id', productId)
+      .single();
+
+    if (productError) throw productError;
+
+    const currentStock = Number(product.current_stock || 0);
+    const shippedQty = Math.min(currentStock, assignedQty);
+
+    if (shippedQty <= 0) continue;
+
+    await supabase
+      .from('products')
+      .update({ current_stock: currentStock - shippedQty })
+      .eq('id', productId);
+
+    await supabase.from('inventory_transactions').insert({
+      product_id: productId,
+      transaction_type: 'out',
+      quantity: shippedQty,
+      notes: `Shipped manufactured quantity for SO ${orderNumber}`,
+      reference_type: 'sales_order',
+      reference_id: orderId,
+    });
+  }
 
   // Release assigned quantities
   await releaseAssignmentsForSalesOrder(orderId);
