@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useProducts, useUpdateProduct, useDeleteProduct } from '@/hooks/useProducts';
 import { useRawMaterials, useUpdateRawMaterial, useDeleteRawMaterial } from '@/hooks/useRawMaterials';
 import { useSemiFinishedGoods, useCreateSemiFinishedGood, useUpdateSemiFinishedGood, useDeleteSemiFinishedGood } from '@/hooks/useSemiFinishedGoods';
@@ -14,19 +14,53 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Warehouse, Package, Boxes, AlertTriangle, MoreHorizontal, Edit, Trash2, Plus, Clock } from 'lucide-react';
+import { Warehouse, Package, Boxes, AlertTriangle, MoreHorizontal, Edit, Trash2, Plus, Clock, ArrowUpDown, ArrowDown, ArrowUp, Search } from 'lucide-react';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { AssignedQuantityDialog } from '@/components/inventory/AssignedQuantityDialog';
 import type { Product, RawMaterial } from '@/types/erp';
 import type { SemiFinishedGood } from '@/hooks/useSemiFinishedGoods';
 import { formatNumber, formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { format } from 'date-fns';
+
+interface InventoryTransaction {
+  id: string;
+  raw_material_id: string | null;
+  product_id: string | null;
+  transaction_type: 'in' | 'out' | 'adjustment';
+  quantity: number;
+  unit_cost: number | null;
+  reference_type: string | null;
+  reference_id: string | null;
+  notes: string | null;
+  created_at: string;
+  product?: { name: string; sku: string } | null;
+  raw_material?: { name: string; sku: string } | null;
+}
+
+function useInventoryTransactions() {
+  return useQuery({
+    queryKey: ['inventory-transactions'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('inventory_transactions')
+        .select('*, product:products(name, sku), raw_material:raw_materials(name, sku)')
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      return data as InventoryTransaction[];
+    },
+  });
+}
 
 export default function Inventory() {
   const { isAdmin } = useAuth();
   const { data: products = [], isLoading: productsLoading } = useProducts();
   const { data: materials = [], isLoading: materialsLoading } = useRawMaterials();
   const { data: semiFinishedGoods = [], isLoading: semiFinishedLoading } = useSemiFinishedGoods();
+  const { data: transactions = [], isLoading: transactionsLoading } = useInventoryTransactions();
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
   const updateMaterial = useUpdateRawMaterial();
@@ -36,6 +70,9 @@ export default function Inventory() {
   const deleteSemiFinished = useDeleteSemiFinishedGood();
 
   const isLoading = productsLoading || materialsLoading || semiFinishedLoading;
+
+  const [txSearch, setTxSearch] = useState('');
+  const [txTypeFilter, setTxTypeFilter] = useState<'all' | 'in' | 'out' | 'adjustment'>('all');
 
   // All products are shown in finished goods tab
   const finishedGoods = products;
@@ -415,7 +452,7 @@ export default function Inventory() {
 
       {/* Inventory Tables */}
       <Tabs defaultValue="products" className="mt-8">
-        <TabsList>
+        <TabsList className="flex-wrap">
           <TabsTrigger value="products" className="gap-2">
             <Package className="h-4 w-4" />
             Finished Goods ({finishedGoods.length})
@@ -427,6 +464,10 @@ export default function Inventory() {
           <TabsTrigger value="semi-finished" className="gap-2">
             <Clock className="h-4 w-4" />
             Semi-Finished ({semiFinishedGoods.length})
+          </TabsTrigger>
+          <TabsTrigger value="transactions" className="gap-2">
+            <ArrowUpDown className="h-4 w-4" />
+            Transactions ({transactions.length})
           </TabsTrigger>
         </TabsList>
         <TabsContent value="products" className="mt-4">
@@ -459,6 +500,16 @@ export default function Inventory() {
             keyExtractor={(item) => item.id}
             isLoading={isLoading}
             emptyMessage="No semi-finished goods. These are products that are partially complete and missing components."
+          />
+        </TabsContent>
+        <TabsContent value="transactions" className="mt-4">
+          <TransactionsTab
+            transactions={transactions}
+            isLoading={transactionsLoading}
+            txSearch={txSearch}
+            setTxSearch={setTxSearch}
+            txTypeFilter={txTypeFilter}
+            setTxTypeFilter={setTxTypeFilter}
           />
         </TabsContent>
       </Tabs>
@@ -701,6 +752,140 @@ export default function Inventory() {
           assignedQuantity={assignedDialog.quantity}
         />
       )}
+    </div>
+  );
+}
+
+// Transactions tab component
+function TransactionsTab({
+  transactions,
+  isLoading,
+  txSearch,
+  setTxSearch,
+  txTypeFilter,
+  setTxTypeFilter,
+}: {
+  transactions: InventoryTransaction[];
+  isLoading: boolean;
+  txSearch: string;
+  setTxSearch: (v: string) => void;
+  txTypeFilter: 'all' | 'in' | 'out' | 'adjustment';
+  setTxTypeFilter: (v: 'all' | 'in' | 'out' | 'adjustment') => void;
+}) {
+  const filteredTx = useMemo(() => {
+    return transactions.filter(tx => {
+      if (txTypeFilter !== 'all' && tx.transaction_type !== txTypeFilter) return false;
+      if (txSearch) {
+        const q = txSearch.toLowerCase();
+        const itemName = tx.product?.name || tx.raw_material?.name || '';
+        const itemSku = tx.product?.sku || tx.raw_material?.sku || '';
+        return itemName.toLowerCase().includes(q) ||
+          itemSku.toLowerCase().includes(q) ||
+          (tx.notes || '').toLowerCase().includes(q) ||
+          (tx.reference_type || '').toLowerCase().includes(q);
+      }
+      return true;
+    });
+  }, [transactions, txSearch, txTypeFilter]);
+
+  const txColumns: Column<InventoryTransaction>[] = [
+    {
+      key: 'date',
+      header: 'Date',
+      cell: (tx) => format(new Date(tx.created_at), 'MMM d, yyyy HH:mm'),
+    },
+    {
+      key: 'type',
+      header: 'Type',
+      cell: (tx) => (
+        <Badge className={
+          tx.transaction_type === 'in'
+            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+            : tx.transaction_type === 'out'
+            ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+            : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+        }>
+          <span className="flex items-center gap-1">
+            {tx.transaction_type === 'in' ? <ArrowDown className="h-3 w-3" /> : tx.transaction_type === 'out' ? <ArrowUp className="h-3 w-3" /> : <ArrowUpDown className="h-3 w-3" />}
+            {tx.transaction_type.toUpperCase()}
+          </span>
+        </Badge>
+      ),
+    },
+    {
+      key: 'item',
+      header: 'Item',
+      cell: (tx) => {
+        const name = tx.product?.name || tx.raw_material?.name || '-';
+        const sku = tx.product?.sku || tx.raw_material?.sku || '';
+        const type = tx.product_id ? 'Product' : tx.raw_material_id ? 'Material' : '';
+        return (
+          <div>
+            <span className="font-medium">{name}</span>
+            {sku && <span className="ml-2 text-xs text-muted-foreground font-mono">{sku}</span>}
+            {type && <Badge variant="outline" className="ml-2 text-xs">{type}</Badge>}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'quantity',
+      header: 'Quantity',
+      cell: (tx) => (
+        <span className={tx.transaction_type === 'in' ? 'text-green-600 font-medium' : tx.transaction_type === 'out' ? 'text-red-600 font-medium' : 'font-medium'}>
+          {tx.transaction_type === 'in' ? '+' : tx.transaction_type === 'out' ? '-' : ''}{formatNumber(tx.quantity)}
+        </span>
+      ),
+    },
+    {
+      key: 'reference',
+      header: 'Reference',
+      cell: (tx) => tx.reference_type ? (
+        <Badge variant="outline" className="text-xs">{tx.reference_type.replace(/_/g, ' ')}</Badge>
+      ) : <span className="text-muted-foreground">-</span>,
+    },
+    {
+      key: 'notes',
+      header: 'Notes',
+      cell: (tx) => (
+        <span className="text-sm text-muted-foreground max-w-[300px] truncate block">
+          {tx.notes || '-'}
+        </span>
+      ),
+    },
+  ];
+
+  return (
+    <div>
+      <div className="flex items-center gap-4 mb-4">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search transactions..."
+            value={txSearch}
+            onChange={(e) => setTxSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Select value={txTypeFilter} onValueChange={(v) => setTxTypeFilter(v as any)}>
+          <SelectTrigger className="w-[140px]">
+            <SelectValue placeholder="All types" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            <SelectItem value="in">In</SelectItem>
+            <SelectItem value="out">Out</SelectItem>
+            <SelectItem value="adjustment">Adjustment</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <DataTable
+        columns={txColumns}
+        data={filteredTx}
+        keyExtractor={(tx) => tx.id}
+        isLoading={isLoading}
+        emptyMessage="No inventory transactions yet."
+      />
     </div>
   );
 }
