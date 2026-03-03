@@ -14,7 +14,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Warehouse, Package, Boxes, AlertTriangle, MoreHorizontal, Edit, Trash2, Plus, Clock, ArrowUpDown, ArrowDown, ArrowUp, Search } from 'lucide-react';
+import { Warehouse, Package, Boxes, AlertTriangle, MoreHorizontal, Edit, Trash2, Plus, Clock, ArrowUpDown, ArrowDown, ArrowUp, Search, CalendarIcon, X } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { AssignedQuantityDialog } from '@/components/inventory/AssignedQuantityDialog';
 import type { Product, RawMaterial } from '@/types/erp';
@@ -510,6 +516,7 @@ export default function Inventory() {
             setTxSearch={setTxSearch}
             txTypeFilter={txTypeFilter}
             setTxTypeFilter={setTxTypeFilter}
+            isAdmin={isAdmin}
           />
         </TabsContent>
       </Tabs>
@@ -764,6 +771,7 @@ function TransactionsTab({
   setTxSearch,
   txTypeFilter,
   setTxTypeFilter,
+  isAdmin,
 }: {
   transactions: InventoryTransaction[];
   isLoading: boolean;
@@ -771,10 +779,31 @@ function TransactionsTab({
   setTxSearch: (v: string) => void;
   txTypeFilter: 'all' | 'in' | 'out' | 'adjustment';
   setTxTypeFilter: (v: 'all' | 'in' | 'out' | 'adjustment') => void;
+  isAdmin: boolean;
 }) {
+  const queryClient = useQueryClient();
+  const [dateFrom, setDateFrom] = useState<Date | undefined>();
+  const [dateTo, setDateTo] = useState<Date | undefined>();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const filteredTx = useMemo(() => {
     return transactions.filter(tx => {
       if (txTypeFilter !== 'all' && tx.transaction_type !== txTypeFilter) return false;
+      if (dateFrom) {
+        const txDate = new Date(tx.created_at);
+        const from = new Date(dateFrom);
+        from.setHours(0, 0, 0, 0);
+        if (txDate < from) return false;
+      }
+      if (dateTo) {
+        const txDate = new Date(tx.created_at);
+        const to = new Date(dateTo);
+        to.setHours(23, 59, 59, 999);
+        if (txDate > to) return false;
+      }
       if (txSearch) {
         const q = txSearch.toLowerCase();
         const itemName = tx.product?.name || tx.raw_material?.name || '';
@@ -786,9 +815,75 @@ function TransactionsTab({
       }
       return true;
     });
-  }, [transactions, txSearch, txTypeFilter]);
+  }, [transactions, txSearch, txTypeFilter, dateFrom, dateTo]);
+
+  const allSelected = filteredTx.length > 0 && filteredTx.every(tx => selectedIds.has(tx.id));
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredTx.map(tx => tx.id)));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleDeleteSelected = async () => {
+    setIsDeleting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const { error } = await supabase.from('inventory_transactions').delete().in('id', ids);
+      if (error) throw error;
+      toast.success(`Deleted ${ids.length} transaction(s)`);
+      setSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ['inventory-transactions'] });
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to delete');
+    } finally {
+      setIsDeleting(false);
+      setDeleteConfirmOpen(false);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase.from('inventory_transactions').delete().gte('created_at', '1970-01-01');
+      if (error) throw error;
+      toast.success('All transactions deleted');
+      setSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ['inventory-transactions'] });
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to delete');
+    } finally {
+      setIsDeleting(false);
+      setDeleteAllConfirmOpen(false);
+    }
+  };
 
   const txColumns: Column<InventoryTransaction>[] = [
+    ...(isAdmin ? [{
+      key: 'select',
+      header: (
+        <Checkbox checked={allSelected} onCheckedChange={toggleSelectAll} aria-label="Select all" />
+      ) as React.ReactNode,
+      cell: (tx: InventoryTransaction) => (
+        <Checkbox
+          checked={selectedIds.has(tx.id)}
+          onCheckedChange={() => toggleSelect(tx.id)}
+          aria-label="Select row"
+          onClick={(e: React.MouseEvent) => e.stopPropagation()}
+        />
+      ),
+      className: 'w-10',
+    } as Column<InventoryTransaction>] : []),
     {
       key: 'date',
       header: 'Date',
@@ -857,8 +952,8 @@ function TransactionsTab({
 
   return (
     <div>
-      <div className="flex items-center gap-4 mb-4">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search transactions..."
@@ -878,14 +973,85 @@ function TransactionsTab({
             <SelectItem value="adjustment">Adjustment</SelectItem>
           </SelectContent>
         </Select>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className={cn("w-[150px] justify-start text-left font-normal", !dateFrom && "text-muted-foreground")}>
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {dateFrom ? format(dateFrom, 'MMM d, yyyy') : 'From'}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} initialFocus className="p-3 pointer-events-auto" />
+          </PopoverContent>
+        </Popover>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className={cn("w-[150px] justify-start text-left font-normal", !dateTo && "text-muted-foreground")}>
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {dateTo ? format(dateTo, 'MMM d, yyyy') : 'To'}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar mode="single" selected={dateTo} onSelect={setDateTo} initialFocus className="p-3 pointer-events-auto" />
+          </PopoverContent>
+        </Popover>
+        {(dateFrom || dateTo) && (
+          <Button variant="ghost" size="icon" onClick={() => { setDateFrom(undefined); setDateTo(undefined); }}>
+            <X className="h-4 w-4" />
+          </Button>
+        )}
       </div>
+
+      {isAdmin && (
+        <div className="flex items-center gap-3 mb-4">
+          {selectedIds.size > 0 && (
+            <Button variant="destructive" size="sm" onClick={() => setDeleteConfirmOpen(true)}>
+              <Trash2 className="mr-2 h-4 w-4" /> Delete Selected ({selectedIds.size})
+            </Button>
+          )}
+          <Button variant="outline" size="sm" className="text-destructive border-destructive/50 hover:bg-destructive/10" onClick={() => setDeleteAllConfirmOpen(true)}>
+            <Trash2 className="mr-2 h-4 w-4" /> Delete All
+          </Button>
+        </div>
+      )}
+
       <DataTable
         columns={txColumns}
         data={filteredTx}
         keyExtractor={(tx) => tx.id}
         isLoading={isLoading}
-        emptyMessage="No inventory transactions yet."
+        emptyMessage="No inventory transactions found."
       />
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.size} Transaction(s)?</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently remove the selected transactions. This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteSelected} disabled={isDeleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteAllConfirmOpen} onOpenChange={setDeleteAllConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete ALL Transactions?</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently remove all inventory transactions. This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteAll} disabled={isDeleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {isDeleting ? 'Deleting...' : 'Delete All'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
