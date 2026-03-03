@@ -1,5 +1,6 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface SalesFiltersProps {
   statusFilter: string;
@@ -8,67 +9,60 @@ interface SalesFiltersProps {
   onMonthChange: (value: string) => void;
 }
 
-const STATUSES = [
-  { value: 'all', label: 'All Statuses' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'processing', label: 'Processing' },
-  { value: 'shipped', label: 'Shipped' },
-  { value: 'delivered', label: 'Delivered' },
-  { value: 'cancelled', label: 'Cancelled' },
-  { value: 'confirmed', label: 'Confirmed' },
-  { value: 'ready_to_deliver', label: 'Ready to Ship' },
-];
+export function SalesFilters({ statusFilter, onStatusChange, monthFilter, onMonthChange }: SalesFiltersProps) {
+  const { t } = useLanguage();
 
-const MONTHS = [
-  { value: 'all', label: 'All Months' },
-  { value: '0', label: 'January' },
-  { value: '1', label: 'February' },
-  { value: '2', label: 'March' },
-  { value: '3', label: 'April' },
-  { value: '4', label: 'May' },
-  { value: '5', label: 'June' },
-  { value: '6', label: 'July' },
-  { value: '7', label: 'August' },
-  { value: '8', label: 'September' },
-  { value: '9', label: 'October' },
-  { value: '10', label: 'November' },
-  { value: '11', label: 'December' },
-];
+  const STATUSES = [
+    { value: 'all', label: t.statusFilter.allStatuses },
+    { value: 'pending', label: t.sales.pending },
+    { value: 'processing', label: t.sales.processing },
+    { value: 'shipped', label: t.sales.shipped },
+    { value: 'delivered', label: t.sales.delivered },
+    { value: 'cancelled', label: t.sales.cancelled },
+    { value: 'confirmed', label: t.sales.confirmed },
+    { value: 'ready_to_deliver', label: t.sales.readyToShip },
+  ];
 
-export function SalesFilters({
-  statusFilter,
-  onStatusChange,
-  monthFilter,
-  onMonthChange,
-}: SalesFiltersProps) {
+  const MONTHS = [
+    { value: 'all', label: t.months.allMonths },
+    { value: '0', label: t.months.january },
+    { value: '1', label: t.months.february },
+    { value: '2', label: t.months.march },
+    { value: '3', label: t.months.april },
+    { value: '4', label: t.months.may },
+    { value: '5', label: t.months.june },
+    { value: '6', label: t.months.july },
+    { value: '7', label: t.months.august },
+    { value: '8', label: t.months.september },
+    { value: '9', label: t.months.october },
+    { value: '10', label: t.months.november },
+    { value: '11', label: t.months.december },
+  ];
+
   return (
     <div className="flex gap-4 mb-4">
       <div className="space-y-1">
-        <Label className="text-xs text-muted-foreground">Status</Label>
+        <Label className="text-xs text-muted-foreground">{t.status}</Label>
         <Select value={statusFilter} onValueChange={onStatusChange}>
           <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Filter by status" />
+            <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {STATUSES.map(status => (
-              <SelectItem key={status.value} value={status.value}>
-                {status.label}
-              </SelectItem>
+              <SelectItem key={status.value} value={status.value}>{status.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
       <div className="space-y-1">
-        <Label className="text-xs text-muted-foreground">Month</Label>
+        <Label className="text-xs text-muted-foreground">{t.salaries.month}</Label>
         <Select value={monthFilter} onValueChange={onMonthChange}>
           <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Filter by month" />
+            <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {MONTHS.map(month => (
-              <SelectItem key={month.value} value={month.value}>
-                {month.label}
-              </SelectItem>
+              <SelectItem key={month.value} value={month.value}>{month.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>

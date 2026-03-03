@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import {
   LayoutDashboard,
   Package,
@@ -24,33 +25,34 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface NavItem {
-  title: string;
+  titleKey: keyof typeof import('@/i18n/translations').translations.en.nav;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   roles?: string[];
 }
 
 const navItems: NavItem[] = [
-  { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { title: 'Products', href: '/products', icon: Package },
-  { title: 'Raw Materials', href: '/raw-materials', icon: Boxes },
-  { title: 'Inventory', href: '/inventory', icon: Warehouse },
-  { title: 'BOM', href: '/bom', icon: ClipboardList },
-  { title: 'Manufacturing', href: '/manufacturing', icon: Factory, roles: ['admin', 'manufacture_manager'] },
-  { title: 'Quality Control', href: '/quality-control', icon: ClipboardCheck, roles: ['admin', 'manufacture_manager'] },
-  { title: 'Suppliers', href: '/suppliers', icon: Truck, roles: ['admin', 'purchasing', 'inventory_manager'] },
-  { title: 'Quotations', href: '/quotations', icon: FileText, roles: ['admin', 'purchasing'] },
-  { title: 'Sales', href: '/sales', icon: ShoppingCart, roles: ['admin', 'purchasing'] },
-  { title: 'Finance', href: '/finance', icon: DollarSign, roles: ['admin', 'cfo'] },
-  { title: 'Salaries', href: '/salaries', icon: DollarSign, roles: ['admin', 'hr', 'cfo'] },
-  { title: 'Users', href: '/users', icon: Users, roles: ['admin', 'hr'] },
-  { title: 'Settings', href: '/settings', icon: Settings, roles: ['admin'] },
+  { titleKey: 'dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { titleKey: 'products', href: '/products', icon: Package },
+  { titleKey: 'rawMaterials', href: '/raw-materials', icon: Boxes },
+  { titleKey: 'inventory', href: '/inventory', icon: Warehouse },
+  { titleKey: 'bom', href: '/bom', icon: ClipboardList },
+  { titleKey: 'manufacturing', href: '/manufacturing', icon: Factory, roles: ['admin', 'manufacture_manager'] },
+  { titleKey: 'qualityControl', href: '/quality-control', icon: ClipboardCheck, roles: ['admin', 'manufacture_manager'] },
+  { titleKey: 'suppliers', href: '/suppliers', icon: Truck, roles: ['admin', 'purchasing', 'inventory_manager'] },
+  { titleKey: 'quotations', href: '/quotations', icon: FileText, roles: ['admin', 'purchasing'] },
+  { titleKey: 'sales', href: '/sales', icon: ShoppingCart, roles: ['admin', 'purchasing'] },
+  { titleKey: 'finance', href: '/finance', icon: DollarSign, roles: ['admin', 'cfo'] },
+  { titleKey: 'salaries', href: '/salaries', icon: DollarSign, roles: ['admin', 'hr', 'cfo'] },
+  { titleKey: 'users', href: '/users', icon: Users, roles: ['admin', 'hr'] },
+  { titleKey: 'settings', href: '/settings', icon: Settings, roles: ['admin'] },
 ];
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const { profile, roles, signOut, hasRole } = useAuth();
+  const { t, isRTL } = useLanguage();
 
   const filteredNavItems = navItems.filter(item => {
     if (!item.roles) return true;
@@ -60,7 +62,8 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'fixed left-0 top-0 z-40 flex h-screen flex-col bg-sidebar text-sidebar-foreground transition-all duration-300',
+        'fixed top-0 z-40 flex h-screen flex-col bg-sidebar text-sidebar-foreground transition-all duration-300',
+        isRTL ? 'right-0' : 'left-0',
         collapsed ? 'w-16' : 'w-64'
       )}
     >
@@ -80,7 +83,10 @@ export function Sidebar() {
           onClick={() => setCollapsed(!collapsed)}
           className="h-8 w-8 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         >
-          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          {collapsed 
+            ? (isRTL ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />) 
+            : (isRTL ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />)
+          }
         </Button>
       </div>
 
@@ -89,6 +95,7 @@ export function Sidebar() {
         {filteredNavItems.map((item) => {
           const isActive = location.pathname === item.href;
           const Icon = item.icon;
+          const title = t.nav[item.titleKey];
 
           const linkContent = (
             <Link
@@ -101,7 +108,7 @@ export function Sidebar() {
               )}
             >
               <Icon className="h-5 w-5 shrink-0" />
-              {!collapsed && <span>{item.title}</span>}
+              {!collapsed && <span>{title}</span>}
             </Link>
           );
 
@@ -109,8 +116,8 @@ export function Sidebar() {
             return (
               <Tooltip key={item.href} delayDuration={0}>
                 <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
-                <TooltipContent side="right" className="bg-card text-card-foreground">
-                  {item.title}
+                <TooltipContent side={isRTL ? 'left' : 'right'} className="bg-card text-card-foreground">
+                  {title}
                 </TooltipContent>
               </Tooltip>
             );
@@ -151,7 +158,7 @@ export function Sidebar() {
           )}
         >
           <LogOut className="h-5 w-5 shrink-0" />
-          {!collapsed && <span className="ml-3">Sign Out</span>}
+          {!collapsed && <span className={isRTL ? 'mr-3' : 'ml-3'}>{t.nav.signOut}</span>}
         </Button>
       </div>
     </aside>

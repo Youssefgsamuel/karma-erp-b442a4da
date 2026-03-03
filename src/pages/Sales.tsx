@@ -14,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { SalesFilters } from '@/components/sales/SalesFilters';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface SalesOrder {
   id: string;
@@ -91,7 +92,7 @@ function useUpdateSalesOrderStatus() {
 
       if (error) throw error;
 
-      // Release assigned quantities and send notifications when shipped
+      // Release assigned quantities, deduct stock, and send notifications when shipped
       if (status === 'shipped') {
         const { processShipment } = await import('@/hooks/useShipmentNotifications');
         await processShipment(id, orderNumber || data.order_number);
@@ -110,10 +111,8 @@ function useUpdateSalesOrderStatus() {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['product-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      const statusMessage = variables.status === 'shipped' 
-        ? 'Order shipped - stock updated and notifications sent'
-        : 'Order status updated';
-      toast.success(statusMessage);
+      queryClient.invalidateQueries({ queryKey: ['inventory-transactions'] });
+      toast.success(variables.status === 'shipped' ? 'Order shipped' : 'Status updated');
     },
     onError: (error) => {
       toast.error(`Failed to update status: ${error.message}`);
@@ -123,67 +122,49 @@ function useUpdateSalesOrderStatus() {
 
 function useSoftDeleteSalesOrder() {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
         .from('sales_orders')
         .update({ deleted_at: new Date().toISOString() })
         .eq('id', id);
-
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sales_orders'] });
       toast.success('Sales order moved to recycle bin');
     },
-    onError: (error) => {
-      toast.error(`Failed to delete order: ${error.message}`);
-    },
+    onError: (error) => toast.error(`Failed: ${error.message}`),
   });
 }
 
 function useRestoreSalesOrder() {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('sales_orders')
-        .update({ deleted_at: null })
-        .eq('id', id);
-
+      const { error } = await supabase.from('sales_orders').update({ deleted_at: null }).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sales_orders'] });
       toast.success('Sales order restored');
     },
-    onError: (error) => {
-      toast.error(`Failed to restore order: ${error.message}`);
-    },
+    onError: (error) => toast.error(`Failed: ${error.message}`),
   });
 }
 
 function usePermanentDeleteSalesOrder() {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('sales_orders')
-        .delete()
-        .eq('id', id);
-
+      const { error } = await supabase.from('sales_orders').delete().eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sales_orders'] });
       toast.success('Sales order permanently deleted');
     },
-    onError: (error) => {
-      toast.error(`Failed to delete order: ${error.message}`);
-    },
+    onError: (error) => toast.error(`Failed: ${error.message}`),
   });
 }
 
@@ -192,6 +173,7 @@ export default function Sales() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [monthFilter, setMonthFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const { t } = useLanguage();
   
   const { data: orders = [], isLoading } = useSalesOrders(activeTab === 'recycled');
   const updateStatus = useUpdateSalesOrderStatus();
@@ -220,40 +202,54 @@ export default function Sales() {
     });
   }, [orders, statusFilter, monthFilter, searchQuery]);
 
+  const getStatusLabel = (status: SalesOrder['status']) => {
+    const map: Record<SalesOrder['status'], string> = {
+      pending: t.sales.pending,
+      processing: t.sales.processing,
+      ready_to_deliver: t.sales.readyToShip,
+      completed: t.sales.readyToShip,
+      shipped: t.sales.shipped,
+      delivered: t.sales.delivered,
+      cancelled: t.sales.cancelled,
+      confirmed: t.sales.confirmed,
+    };
+    return map[status] || status;
+  };
+
   const columns: Column<SalesOrder>[] = [
     { 
       key: 'order_number', 
-      header: 'Order #', 
+      header: t.sales.orderNumber, 
       cell: (order) => <span className="font-medium">{order.order_number}</span> 
     },
     { 
       key: 'customer_name', 
-      header: 'Customer', 
+      header: t.sales.customer, 
       cell: (order) => order.customer_name 
     },
     { 
       key: 'status', 
-      header: 'Status', 
+      header: t.status, 
       cell: (order) => (
         <Badge className={`${statusColors[order.status]} flex items-center gap-1 w-fit`}>
           {statusIcons[order.status]}
-          {order.status === 'ready_to_deliver' || order.status === 'completed' ? 'Ready to Ship' : order.status.replace(/_/g, ' ').charAt(0).toUpperCase() + order.status.replace(/_/g, ' ').slice(1)}
+          {getStatusLabel(order.status)}
         </Badge>
       )
     },
     { 
       key: 'order_date', 
-      header: 'Order Date', 
+      header: t.sales.orderDate, 
       cell: (order) => format(new Date(order.order_date), 'MMM d, yyyy') 
     },
     { 
       key: 'due_date', 
-      header: 'Due Date', 
+      header: t.sales.dueDate, 
       cell: (order) => order.due_date ? format(new Date(order.due_date), 'MMM d, yyyy') : '-' 
     },
     { 
       key: 'total', 
-      header: 'Total', 
+      header: t.total, 
       cell: (order) => <span className="font-medium">${Number(order.total).toFixed(2)}</span> 
     },
     { 
@@ -262,14 +258,14 @@ export default function Sales() {
       cell: (order) => activeTab === 'recycled' ? (
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => restore.mutate(order.id)}>
-            <RotateCcw className="mr-1 h-3 w-3" /> Restore
+            <RotateCcw className="mr-1 h-3 w-3" /> {t.restore}
           </Button>
           <Button 
             variant="destructive" 
             size="sm" 
             onClick={() => setDeleteConfirm(order)}
           >
-            <Trash2 className="mr-1 h-3 w-3" /> Delete Forever
+            <Trash2 className="mr-1 h-3 w-3" /> {t.deleteForever}
           </Button>
         </div>
       ) : (
@@ -280,17 +276,17 @@ export default function Sales() {
           <DropdownMenuContent align="end">
             {order.status === 'pending' && (
               <DropdownMenuItem onClick={() => updateStatus.mutate({ id: order.id, status: 'processing' })}>
-                <Package className="mr-2 h-4 w-4" /> Start Processing
+                <Package className="mr-2 h-4 w-4" /> {t.sales.startProcessing}
               </DropdownMenuItem>
             )}
-            {(order.status === 'ready_to_deliver' || order.status === 'completed') && (
+            {(order.status === 'processing' || order.status === 'ready_to_deliver' || order.status === 'completed') && (
               <DropdownMenuItem onClick={() => updateStatus.mutate({ id: order.id, status: 'shipped', orderNumber: order.order_number })}>
-                <ShoppingCart className="mr-2 h-4 w-4" /> Ship Order
+                <ShoppingCart className="mr-2 h-4 w-4" /> {t.sales.shipOrder}
               </DropdownMenuItem>
             )}
             {order.status === 'shipped' && (
               <DropdownMenuItem onClick={() => updateStatus.mutate({ id: order.id, status: 'delivered' })}>
-                <CheckCircle className="mr-2 h-4 w-4" /> Mark Delivered
+                <CheckCircle className="mr-2 h-4 w-4" /> {t.sales.markDelivered}
               </DropdownMenuItem>
             )}
             {(order.status === 'pending' || order.status === 'processing') && (
@@ -298,14 +294,14 @@ export default function Sales() {
                 onClick={() => updateStatus.mutate({ id: order.id, status: 'cancelled' })}
                 className="text-destructive"
               >
-                <XCircle className="mr-2 h-4 w-4" /> Cancel Order
+                <XCircle className="mr-2 h-4 w-4" /> {t.sales.cancelOrder}
               </DropdownMenuItem>
             )}
             <DropdownMenuItem 
               onClick={() => softDelete.mutate(order.id)} 
               className="text-destructive"
             >
-              <Trash2 className="mr-2 h-4 w-4" /> Move to Recycle Bin
+              <Trash2 className="mr-2 h-4 w-4" /> {t.moveToRecycleBin}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -316,16 +312,15 @@ export default function Sales() {
   return (
     <div className="animate-fade-in">
       <PageHeader
-        title="Sales Orders"
-        description="Manage and track your sales orders."
+        title={t.sales.title}
+        description={t.sales.description}
       />
 
-      {/* Search */}
       <div className="mb-4 flex items-center gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search orders..."
+            placeholder={t.sales.searchOrders}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
@@ -335,8 +330,8 @@ export default function Sales() {
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'active' | 'recycled')}>
         <TabsList className="mb-4">
-          <TabsTrigger value="active">Active Orders</TabsTrigger>
-          <TabsTrigger value="recycled">Recycle Bin</TabsTrigger>
+          <TabsTrigger value="active">{t.sales.activeOrders}</TabsTrigger>
+          <TabsTrigger value="recycled">{t.recycleBin}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="active">
@@ -351,7 +346,7 @@ export default function Sales() {
             data={filteredOrders}
             keyExtractor={(order) => order.id}
             isLoading={isLoading}
-            emptyMessage="No sales orders yet. Convert a quotation to create a sales order."
+            emptyMessage={t.sales.noOrders}
           />
         </TabsContent>
 
@@ -361,22 +356,21 @@ export default function Sales() {
             data={filteredOrders}
             keyExtractor={(order) => order.id}
             isLoading={isLoading}
-            emptyMessage="Recycle bin is empty."
+            emptyMessage={t.recycleBin}
           />
         </TabsContent>
       </Tabs>
 
-      {/* Delete Confirmation */}
       <AlertDialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Permanently Delete Sales Order?</AlertDialogTitle>
+            <AlertDialogTitle>{t.sales.permanentlyDelete}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete order "{deleteConfirm?.order_number}". This action cannot be undone.
+              {t.sales.permanentDeleteWarning} "{deleteConfirm?.order_number}". {t.sales.cannotBeUndone}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t.cancel}</AlertDialogCancel>
             <AlertDialogAction 
               onClick={() => {
                 if (deleteConfirm) {
@@ -386,7 +380,7 @@ export default function Sales() {
               }} 
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete Forever
+              {t.deleteForever}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
