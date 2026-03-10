@@ -2,8 +2,11 @@ import { PageHeader } from '@/components/ui/page-header';
 import { StatCard } from '@/components/ui/stat-card';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DollarSign, Package, ShoppingCart, TrendingUp, Warehouse, Clock, CalendarDays, CreditCard } from 'lucide-react';
 import { useFinanceSummary, useExpectedRevenue, useExpectedPayments, ExpectedRevenue, ExpectedPayment } from '@/hooks/useFinance';
+import { useFinanceCalendarEvents } from '@/hooks/useFinanceCalendar';
+import { FinanceCalendar } from '@/components/finance/FinanceCalendar';
 import { format } from 'date-fns';
 import { formatCurrency } from '@/lib/utils';
 
@@ -11,6 +14,7 @@ export default function Finance() {
   const { data: summary, isLoading: summaryLoading } = useFinanceSummary();
   const { data: revenue = [], isLoading: revenueLoading } = useExpectedRevenue();
   const { data: payments = [], isLoading: paymentsLoading } = useExpectedPayments();
+  const { data: calendarData } = useFinanceCalendarEvents();
 
   const totalExpectedRevenue = revenue.reduce((sum, r) => sum + Number(r.total), 0);
   const totalExpectedPayments = payments.reduce((sum, p) => sum + p.total_value, 0);
@@ -84,29 +88,45 @@ export default function Finance() {
         />
       </div>
 
-      {/* Expected Revenue Table */}
-      <div className="space-y-3">
-        <h2 className="text-lg font-semibold">Expected Revenue</h2>
-        <DataTable
-          columns={revenueColumns}
-          data={revenue}
-          keyExtractor={(r) => r.id}
-          isLoading={revenueLoading}
-          emptyMessage="No expected revenue from active sales orders."
-        />
-      </div>
+      {/* Tabs: Tables vs Calendar */}
+      <Tabs defaultValue="tables">
+        <TabsList>
+          <TabsTrigger value="tables">Tables</TabsTrigger>
+          <TabsTrigger value="calendar">Calendar View</TabsTrigger>
+        </TabsList>
 
-      {/* Expected Payments Table */}
-      <div className="space-y-3">
-        <h2 className="text-lg font-semibold">Expected Supplier Payments</h2>
-        <DataTable
-          columns={paymentColumns}
-          data={payments}
-          keyExtractor={(p) => p.supplier_id}
-          isLoading={paymentsLoading}
-          emptyMessage="No expected supplier payments based on current payment terms."
-        />
-      </div>
+        <TabsContent value="tables" className="space-y-6 mt-4">
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold">Expected Revenue</h2>
+            <DataTable
+              columns={revenueColumns}
+              data={revenue}
+              keyExtractor={(r) => r.id}
+              isLoading={revenueLoading}
+              emptyMessage="No expected revenue from active sales orders."
+            />
+          </div>
+
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold">Expected Supplier Payments</h2>
+            <DataTable
+              columns={paymentColumns}
+              data={payments}
+              keyExtractor={(p) => p.supplier_id}
+              isLoading={paymentsLoading}
+              emptyMessage="No expected supplier payments based on current payment terms."
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="calendar" className="mt-4">
+          <FinanceCalendar
+            revenueEvents={calendarData?.revenueEvents || []}
+            paymentEvents={calendarData?.paymentEvents || []}
+            salaryEvents={calendarData?.salaryEvents || []}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
