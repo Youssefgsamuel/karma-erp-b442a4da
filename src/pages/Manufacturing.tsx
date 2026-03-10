@@ -60,6 +60,9 @@ interface MOWithCounts extends ManufacturingOrder {
   totalQuantity: number;
   moItems: MoItemWithProduct[];
   quotation_number?: string;
+  completedItems: number;
+  totalItems: number;
+  progressPercent: number;
 }
 
 export default function Manufacturing() {
