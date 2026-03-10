@@ -14,6 +14,7 @@ export default function Finance() {
   const { data: summary, isLoading: summaryLoading } = useFinanceSummary();
   const { data: revenue = [], isLoading: revenueLoading } = useExpectedRevenue();
   const { data: payments = [], isLoading: paymentsLoading } = useExpectedPayments();
+  const { data: calendarData } = useFinanceCalendarEvents();
 
   const totalExpectedRevenue = revenue.reduce((sum, r) => sum + Number(r.total), 0);
   const totalExpectedPayments = payments.reduce((sum, p) => sum + p.total_value, 0);
