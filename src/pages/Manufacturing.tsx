@@ -157,12 +157,21 @@ export default function Manufacturing() {
       const items = moItemsMap[mo.id] || [];
       const productCount = 1 + items.length;
       const totalQuantity = Number(mo.quantity) + items.reduce((sum, item) => sum + Number(item.quantity), 0);
+      const completedItems = items.filter(item => item.status === 'completed').length;
+      // Primary product counts as completed if MO is under_qc/completed/closed
+      const primaryDone = ['under_qc', 'completed', 'closed'].includes(mo.status) ? 1 : 0;
+      const totalItems = productCount;
+      const totalCompleted = completedItems + primaryDone;
+      const progressPercent = totalItems > 0 ? Math.round((totalCompleted / totalItems) * 100) : 0;
       return {
         ...mo,
         productCount,
         totalQuantity,
         moItems: items,
         quotation_number: mo.quotation_id ? quotationMap[mo.quotation_id] : undefined,
+        completedItems: totalCompleted,
+        totalItems,
+        progressPercent,
       };
     }).filter(mo => {
       if (!searchQuery) return true;
