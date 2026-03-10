@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Progress } from '@/components/ui/progress';
 import { Plus, MoreHorizontal, Play, CheckCircle, XCircle, Trash2, AlertTriangle, CheckCircle2, ListChecks, RotateCcw, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { useManufacturingOrders, useCreateManufacturingOrder, useUpdateManufacturingOrder, useDeleteManufacturingOrder, ManufacturingOrder } from '@/hooks/useManufacturingOrders';
