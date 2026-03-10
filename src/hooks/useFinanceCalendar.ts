@@ -78,7 +78,7 @@ export function useFinanceCalendarEvents() {
         .eq('payment_status', 'pending');
 
       for (const salary of salaries || []) {
-        const date = salary.payment_date || `${salary.year}-${String(salary.month).padStart(2, '0')}-28`;
+        const date = salary.payment_date || `${salary.year}-${String(salary.month).padStart(2, '0')}-01`;
         salaryEvents.push({
           date,
           type: 'salary',
