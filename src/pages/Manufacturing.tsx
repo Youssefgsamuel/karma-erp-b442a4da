@@ -555,16 +555,32 @@ export default function Manufacturing() {
 
       {/* MO Items Dialog */}
       <Dialog open={isItemsDialogOpen} onOpenChange={setIsItemsDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>MO Items - {selectedMO?.mo_number}</DialogTitle>
             <DialogDescription>
-              Manage individual item status for this manufacturing order.
+              Mark each item as completed individually. Completed items are sent to QC.
             </DialogDescription>
           </DialogHeader>
           
           {selectedMO && (
             <div className="space-y-4">
+              {/* Progress Overview */}
+              {selectedMO.status === 'in_progress' && (
+                <div className="p-3 rounded-lg border bg-muted/30">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium">Overall Progress</span>
+                    <span className="text-sm text-muted-foreground">
+                      {selectedMoItems.filter(i => i.status === 'completed').length}/{selectedMoItems.length + 1} items
+                    </span>
+                  </div>
+                  <Progress
+                    value={selectedMO.totalItems > 0 ? (selectedMoItems.filter(i => i.status === 'completed').length / (selectedMoItems.length + 1)) * 100 : 0}
+                    className="h-3"
+                  />
+                </div>
+              )}
+
               {/* Primary Product */}
               <div className="p-4 rounded-lg border bg-card">
                 <div className="flex items-center justify-between">
@@ -582,30 +598,37 @@ export default function Manufacturing() {
               {/* Additional Items */}
               {selectedMoItems.length > 0 && (
                 <div className="space-y-2">
-                  <h4 className="text-sm font-medium text-muted-foreground">Additional Items</h4>
+                  <h4 className="text-sm font-medium text-muted-foreground">Additional Items ({selectedMoItems.length})</h4>
                   {selectedMoItems.map(item => (
                     <div key={item.id} className="p-4 rounded-lg border bg-card">
                       <div className="flex items-center justify-between">
-                        <div>
+                        <div className="flex-1">
                           <p className="font-medium">{item.product?.name}</p>
                           <p className="text-sm text-muted-foreground">{item.product?.sku}</p>
+                          {item.status === 'completed' && (
+                            <p className="text-xs text-green-600 mt-1">✓ Sent to QC</p>
+                          )}
                         </div>
                         <div className="flex items-center gap-4">
                           <span className="text-sm">Qty: {formatNumber(item.quantity)}</span>
-                          <Select 
-                            value={item.status} 
-                            onValueChange={(v) => handleItemStatusChange(item, v as any)}
-                            disabled={updateItemStatus.isPending}
-                          >
-                            <SelectTrigger className="w-[130px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="pending">Pending</SelectItem>
-                              <SelectItem value="in_progress">In Progress</SelectItem>
-                              <SelectItem value="completed">Completed</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          {selectedMO.status === 'in_progress' ? (
+                            <Select 
+                              value={item.status} 
+                              onValueChange={(v) => handleItemStatusChange(item, v as any)}
+                              disabled={updateItemStatus.isPending || item.status === 'completed'}
+                            >
+                              <SelectTrigger className="w-[140px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="pending">Pending</SelectItem>
+                                <SelectItem value="in_progress">In Progress</SelectItem>
+                                <SelectItem value="completed">✓ Complete → QC</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Badge className={itemStatusColors[item.status] || ''}>{item.status}</Badge>
+                          )}
                         </div>
                       </div>
                     </div>
