@@ -2,8 +2,11 @@ import { PageHeader } from '@/components/ui/page-header';
 import { StatCard } from '@/components/ui/stat-card';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DollarSign, Package, ShoppingCart, TrendingUp, Warehouse, Clock, CalendarDays, CreditCard } from 'lucide-react';
 import { useFinanceSummary, useExpectedRevenue, useExpectedPayments, ExpectedRevenue, ExpectedPayment } from '@/hooks/useFinance';
+import { useFinanceCalendarEvents } from '@/hooks/useFinanceCalendar';
+import { FinanceCalendar } from '@/components/finance/FinanceCalendar';
 import { format } from 'date-fns';
 import { formatCurrency } from '@/lib/utils';
 
