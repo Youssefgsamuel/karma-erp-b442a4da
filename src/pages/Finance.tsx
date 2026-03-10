@@ -88,29 +88,45 @@ export default function Finance() {
         />
       </div>
 
-      {/* Expected Revenue Table */}
-      <div className="space-y-3">
-        <h2 className="text-lg font-semibold">Expected Revenue</h2>
-        <DataTable
-          columns={revenueColumns}
-          data={revenue}
-          keyExtractor={(r) => r.id}
-          isLoading={revenueLoading}
-          emptyMessage="No expected revenue from active sales orders."
-        />
-      </div>
+      {/* Tabs: Tables vs Calendar */}
+      <Tabs defaultValue="tables">
+        <TabsList>
+          <TabsTrigger value="tables">Tables</TabsTrigger>
+          <TabsTrigger value="calendar">Calendar View</TabsTrigger>
+        </TabsList>
 
-      {/* Expected Payments Table */}
-      <div className="space-y-3">
-        <h2 className="text-lg font-semibold">Expected Supplier Payments</h2>
-        <DataTable
-          columns={paymentColumns}
-          data={payments}
-          keyExtractor={(p) => p.supplier_id}
-          isLoading={paymentsLoading}
-          emptyMessage="No expected supplier payments based on current payment terms."
-        />
-      </div>
+        <TabsContent value="tables" className="space-y-6 mt-4">
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold">Expected Revenue</h2>
+            <DataTable
+              columns={revenueColumns}
+              data={revenue}
+              keyExtractor={(r) => r.id}
+              isLoading={revenueLoading}
+              emptyMessage="No expected revenue from active sales orders."
+            />
+          </div>
+
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold">Expected Supplier Payments</h2>
+            <DataTable
+              columns={paymentColumns}
+              data={payments}
+              keyExtractor={(p) => p.supplier_id}
+              isLoading={paymentsLoading}
+              emptyMessage="No expected supplier payments based on current payment terms."
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="calendar" className="mt-4">
+          <FinanceCalendar
+            revenueEvents={calendarData?.revenueEvents || []}
+            paymentEvents={calendarData?.paymentEvents || []}
+            salaryEvents={calendarData?.salaryEvents || []}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
