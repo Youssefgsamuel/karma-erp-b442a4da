@@ -86,6 +86,14 @@ export function useUpdateMoItemStatus() {
 
   return useMutation({
     mutationFn: async ({ itemId, status, moId }: { itemId: string; status: 'pending' | 'in_progress' | 'completed'; moId: string }) => {
+      // Get item details before updating
+      const { data: item, error: itemError } = await supabase
+        .from('mo_items')
+        .select('*, product:products(name, sku)')
+        .eq('id', itemId)
+        .single();
+      if (itemError) throw itemError;
+
       const { data, error } = await supabase
         .from('mo_items')
         .update({ status })
@@ -95,18 +103,50 @@ export function useUpdateMoItemStatus() {
       
       if (error) throw error;
 
-      // Check if all items are completed
+      // When an item is marked completed, create a QC record for it immediately
+      if (status === 'completed' && item) {
+        await supabase.from('quality_control_records').insert({
+          mo_id: moId,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          status: 'under_review',
+        });
+      }
+
+      // Check if ALL items (mo_items) are completed
       if (status === 'completed') {
         const { data: allItems } = await supabase
           .from('mo_items')
           .select('status')
           .eq('mo_id', moId);
 
-        const allCompleted = allItems?.every(item => item.status === 'completed');
+        const allCompleted = allItems?.every(i => i.status === 'completed');
         
-        // If all items are completed, we can notify or trigger MO completion
         if (allCompleted && allItems && allItems.length > 0) {
-          toast.info('All items completed! You can now mark the MO as complete.');
+          // Get MO details to also create QC for primary product
+          const { data: mo } = await supabase
+            .from('manufacturing_orders')
+            .select('product_id, quantity, status')
+            .eq('id', moId)
+            .single();
+
+          if (mo && mo.status === 'in_progress') {
+            // Create QC record for primary product
+            await supabase.from('quality_control_records').insert({
+              mo_id: moId,
+              product_id: mo.product_id,
+              quantity: mo.quantity,
+              status: 'under_review',
+            });
+
+            // Move MO to under_qc
+            await supabase
+              .from('manufacturing_orders')
+              .update({ status: 'under_qc', actual_end: new Date().toISOString() })
+              .eq('id', moId);
+          }
+
+          toast.info('All items completed! MO sent to Quality Control.');
         }
       }
 
@@ -114,7 +154,10 @@ export function useUpdateMoItemStatus() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['mo-items', variables.moId] });
+      queryClient.invalidateQueries({ queryKey: ['all-mo-items'] });
       queryClient.invalidateQueries({ queryKey: ['manufacturing_orders'] });
+      queryClient.invalidateQueries({ queryKey: ['quality-control-records'] });
+      queryClient.invalidateQueries({ queryKey: ['quality-control-counts'] });
       toast.success('Item status updated');
     },
     onError: (error) => {
