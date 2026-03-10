@@ -296,6 +296,18 @@ export default function Manufacturing() {
           {formatNumber(mo.totalQuantity)}
         </button>
       )},
+      { key: 'progress', header: 'Progress', cell: (mo) => (
+        mo.status === 'in_progress' || mo.status === 'under_qc' ? (
+          <div className="flex items-center gap-2 min-w-[120px]">
+            <Progress value={mo.progressPercent} className="h-2 flex-1" />
+            <span className="text-xs text-muted-foreground whitespace-nowrap">{mo.completedItems}/{mo.totalItems}</span>
+          </div>
+        ) : mo.status === 'completed' || mo.status === 'closed' ? (
+          <span className="text-xs text-green-600 font-medium">100%</span>
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
+        )
+      )},
       { key: 'status', header: 'Status', cell: (mo) => (
         <Badge className={statusColors[mo.status]}>{mo.status.replace('_', ' ')}</Badge>
       )},
