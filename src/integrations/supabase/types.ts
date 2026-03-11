@@ -1220,6 +1220,8 @@ export type Database = {
         | "inventory_manager"
         | "purchasing"
         | "cfo"
+        | "sales_cairo"
+        | "sales_north_coast"
       inventory_transaction_type: "in" | "out" | "adjustment"
       product_type: "in_house" | "outsourced" | "semi_finished" | "hybrid"
       unit_of_measure:
@@ -1367,6 +1369,8 @@ export const Constants = {
         "inventory_manager",
         "purchasing",
         "cfo",
+        "sales_cairo",
+        "sales_north_coast",
       ],
       inventory_transaction_type: ["in", "out", "adjustment"],
       product_type: ["in_house", "outsourced", "semi_finished", "hybrid"],
