@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Warehouse, Package, Boxes, AlertTriangle, MoreHorizontal, Edit, Trash2, Plus, Clock, ArrowUpDown, ArrowDown, ArrowUp, Search, CalendarIcon, X } from 'lucide-react';
+import { Warehouse, Package, Boxes, AlertTriangle, MoreHorizontal, Edit, Trash2, Plus, Clock, ArrowUpDown, ArrowDown, ArrowUp, Search, CalendarIcon, X, MapPin, Send } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
