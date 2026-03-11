@@ -30,6 +30,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
+import { BranchInventoryTab } from '@/components/inventory/BranchInventoryTab';
+import { DispatchDialog } from '@/components/inventory/DispatchDialog';
 
 interface InventoryTransaction {
   id: string;
