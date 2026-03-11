@@ -1,4 +1,4 @@
-export type AppRole = 'admin' | 'hr' | 'manufacture_manager' | 'inventory_manager' | 'purchasing' | 'cfo';
+export type AppRole = 'admin' | 'hr' | 'manufacture_manager' | 'inventory_manager' | 'purchasing' | 'cfo' | 'sales_cairo' | 'sales_north_coast';
 
 export type UnitOfMeasure = 'pcs' | 'kg' | 'g' | 'l' | 'ml' | 'm' | 'cm' | 'mm' | 'box' | 'pack';
 

@@ -56,6 +56,41 @@ export type Database = {
           },
         ]
       }
+      branch_inventory: {
+        Row: {
+          branch: string
+          created_at: string
+          id: string
+          product_id: string
+          quantity: number
+          updated_at: string
+        }
+        Insert: {
+          branch: string
+          created_at?: string
+          id?: string
+          product_id: string
+          quantity?: number
+          updated_at?: string
+        }
+        Update: {
+          branch?: string
+          created_at?: string
+          id?: string
+          product_id?: string
+          quantity?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_inventory_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           created_at: string
@@ -1220,7 +1255,9 @@ export type Database = {
         | "inventory_manager"
         | "purchasing"
         | "cfo"
-      inventory_transaction_type: "in" | "out" | "adjustment"
+        | "sales_cairo"
+        | "sales_north_coast"
+      inventory_transaction_type: "in" | "out" | "adjustment" | "transfer"
       product_type: "in_house" | "outsourced" | "semi_finished" | "hybrid"
       unit_of_measure:
         | "pcs"
@@ -1367,8 +1404,10 @@ export const Constants = {
         "inventory_manager",
         "purchasing",
         "cfo",
+        "sales_cairo",
+        "sales_north_coast",
       ],
-      inventory_transaction_type: ["in", "out", "adjustment"],
+      inventory_transaction_type: ["in", "out", "adjustment", "transfer"],
       product_type: ["in_house", "outsourced", "semi_finished", "hybrid"],
       unit_of_measure: [
         "pcs",

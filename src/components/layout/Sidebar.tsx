@@ -41,7 +41,7 @@ const navItems: NavItem[] = [
   { titleKey: 'qualityControl', href: '/quality-control', icon: ClipboardCheck, roles: ['admin', 'manufacture_manager'] },
   { titleKey: 'suppliers', href: '/suppliers', icon: Truck, roles: ['admin', 'purchasing', 'inventory_manager'] },
   { titleKey: 'quotations', href: '/quotations', icon: FileText, roles: ['admin', 'purchasing'] },
-  { titleKey: 'sales', href: '/sales', icon: ShoppingCart, roles: ['admin', 'purchasing'] },
+  { titleKey: 'sales', href: '/sales', icon: ShoppingCart, roles: ['admin', 'purchasing', 'sales_cairo', 'sales_north_coast'] },
   { titleKey: 'finance', href: '/finance', icon: DollarSign, roles: ['admin', 'cfo'] },
   { titleKey: 'salaries', href: '/salaries', icon: DollarSign, roles: ['admin', 'hr', 'cfo'] },
   { titleKey: 'users', href: '/users', icon: Users, roles: ['admin', 'hr'] },

@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Warehouse, Package, Boxes, AlertTriangle, MoreHorizontal, Edit, Trash2, Plus, Clock, ArrowUpDown, ArrowDown, ArrowUp, Search, CalendarIcon, X } from 'lucide-react';
+import { Warehouse, Package, Boxes, AlertTriangle, MoreHorizontal, Edit, Trash2, Plus, Clock, ArrowUpDown, ArrowDown, ArrowUp, Search, CalendarIcon, X, MapPin, Send } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -30,6 +30,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
+import { BranchInventoryTab } from '@/components/inventory/BranchInventoryTab';
+import { DispatchDialog } from '@/components/inventory/DispatchDialog';
 
 interface InventoryTransaction {
   id: string;
@@ -91,6 +93,7 @@ export default function Inventory() {
   const [productFormData, setProductFormData] = useState({ current_stock: 0, minimum_stock: 0, assigned_quantity: 0 });
   const [materialFormData, setMaterialFormData] = useState({ current_stock: 0, purchasing_quantity: 0, reorder_point: 0 });
   const [assignedDialog, setAssignedDialog] = useState<{ productId: string; productName: string; quantity: number } | null>(null);
+  const [isDispatchOpen, setIsDispatchOpen] = useState(false);
   
   // Semi-finished goods dialog state
   const [isAddSemiFinishedOpen, setIsAddSemiFinishedOpen] = useState(false);
@@ -399,6 +402,11 @@ export default function Inventory() {
       <PageHeader
         title="Inventory"
         description="Overview of your stock levels and inventory value."
+        actions={isAdmin ? (
+          <Button onClick={() => setIsDispatchOpen(true)}>
+            <Send className="mr-2 h-4 w-4" /> Dispatch to Branch
+          </Button>
+        ) : undefined}
       />
 
       {/* Summary Cards */}
@@ -475,6 +483,14 @@ export default function Inventory() {
             <ArrowUpDown className="h-4 w-4" />
             Transactions ({transactions.length})
           </TabsTrigger>
+          <TabsTrigger value="cairo" className="gap-2">
+            <MapPin className="h-4 w-4" />
+            Cairo
+          </TabsTrigger>
+          <TabsTrigger value="north_coast" className="gap-2">
+            <MapPin className="h-4 w-4" />
+            North Coast
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="products" className="mt-4">
           <DataTable
@@ -519,7 +535,20 @@ export default function Inventory() {
             isAdmin={isAdmin}
           />
         </TabsContent>
+        <TabsContent value="cairo" className="mt-4">
+          <BranchInventoryTab branch="cairo" />
+        </TabsContent>
+        <TabsContent value="north_coast" className="mt-4">
+          <BranchInventoryTab branch="north_coast" />
+        </TabsContent>
       </Tabs>
+
+      {/* Dispatch Dialog */}
+      <DispatchDialog
+        open={isDispatchOpen}
+        onOpenChange={setIsDispatchOpen}
+        products={products}
+      />
 
       {/* Edit Product Dialog */}
       <Dialog open={!!editingProduct} onOpenChange={() => setEditingProduct(null)}>

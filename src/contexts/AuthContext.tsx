@@ -15,6 +15,8 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   hasRole: (role: AppRole) => boolean;
   isAdmin: boolean;
+  isBranchSales: boolean;
+  branch: 'cairo' | 'north_coast' | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -120,6 +122,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const hasRole = (role: AppRole) => roles.includes(role) || roles.includes('admin');
   const isAdmin = roles.includes('admin');
   const isApproved = profile?.is_approved ?? false;
+  const isBranchSales = roles.includes('sales_cairo') || roles.includes('sales_north_coast');
+  const branch: 'cairo' | 'north_coast' | null = roles.includes('sales_cairo') ? 'cairo' : roles.includes('sales_north_coast') ? 'north_coast' : null;
 
   return (
     <AuthContext.Provider
@@ -135,6 +139,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signOut,
         hasRole,
         isAdmin,
+        isBranchSales,
+        branch,
       }}
     >
       {children}
