@@ -93,6 +93,7 @@ export default function Inventory() {
   const [productFormData, setProductFormData] = useState({ current_stock: 0, minimum_stock: 0, assigned_quantity: 0 });
   const [materialFormData, setMaterialFormData] = useState({ current_stock: 0, purchasing_quantity: 0, reorder_point: 0 });
   const [assignedDialog, setAssignedDialog] = useState<{ productId: string; productName: string; quantity: number } | null>(null);
+  const [isDispatchOpen, setIsDispatchOpen] = useState(false);
   
   // Semi-finished goods dialog state
   const [isAddSemiFinishedOpen, setIsAddSemiFinishedOpen] = useState(false);
