@@ -536,7 +536,20 @@ export default function Inventory() {
             isAdmin={isAdmin}
           />
         </TabsContent>
+        <TabsContent value="cairo" className="mt-4">
+          <BranchInventoryTab branch="cairo" />
+        </TabsContent>
+        <TabsContent value="north_coast" className="mt-4">
+          <BranchInventoryTab branch="north_coast" />
+        </TabsContent>
       </Tabs>
+
+      {/* Dispatch Dialog */}
+      <DispatchDialog
+        open={isDispatchOpen}
+        onOpenChange={setIsDispatchOpen}
+        products={products}
+      />
 
       {/* Edit Product Dialog */}
       <Dialog open={!!editingProduct} onOpenChange={() => setEditingProduct(null)}>
