@@ -139,6 +139,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signOut,
         hasRole,
         isAdmin,
+        isBranchSales,
+        branch,
       }}
     >
       {children}
