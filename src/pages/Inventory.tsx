@@ -484,6 +484,14 @@ export default function Inventory() {
             <ArrowUpDown className="h-4 w-4" />
             Transactions ({transactions.length})
           </TabsTrigger>
+          <TabsTrigger value="cairo" className="gap-2">
+            <MapPin className="h-4 w-4" />
+            Cairo
+          </TabsTrigger>
+          <TabsTrigger value="north_coast" className="gap-2">
+            <MapPin className="h-4 w-4" />
+            North Coast
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="products" className="mt-4">
           <DataTable
