@@ -36,6 +36,8 @@ const ROLES: { value: AppRole; label: string; description: string }[] = [
   { value: 'inventory_manager', label: 'Inventory Manager', description: 'Manage stock and materials' },
   { value: 'purchasing', label: 'Purchasing', description: 'Handle purchase orders' },
   { value: 'cfo', label: 'CFO', description: 'Financial oversight' },
+  { value: 'sales_cairo', label: 'Sales (Cairo)', description: 'Cairo branch sales' },
+  { value: 'sales_north_coast', label: 'Sales (North Coast)', description: 'North Coast branch sales' },
 ];
 
 const roleColors: Record<AppRole, string> = {
@@ -45,6 +47,8 @@ const roleColors: Record<AppRole, string> = {
   inventory_manager: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
   purchasing: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
   cfo: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+  sales_cairo: 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200',
+  sales_north_coast: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200',
 };
 
 export default function UsersPage() {
