@@ -402,7 +402,13 @@ export default function Inventory() {
       <PageHeader
         title="Inventory"
         description="Overview of your stock levels and inventory value."
-      />
+      >
+        {isAdmin && (
+          <Button onClick={() => setIsDispatchOpen(true)}>
+            <Send className="mr-2 h-4 w-4" /> Dispatch to Branch
+          </Button>
+        )}
+      </PageHeader>
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
