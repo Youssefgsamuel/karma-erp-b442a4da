@@ -15,6 +15,8 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   hasRole: (role: AppRole) => boolean;
   isAdmin: boolean;
+  isBranchSales: boolean;
+  branch: 'cairo' | 'north_coast' | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
