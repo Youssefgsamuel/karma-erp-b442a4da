@@ -78,6 +78,9 @@ function AppRoutes() {
         <Route path="/sales" element={<Sales />} />
         <Route path="/finance" element={<Finance />} />
         <Route path="/salaries" element={<Salaries />} />
+        <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
+        <Route path="/customers" element={<CustomersPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
         <Route path="/users" element={<UsersPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
