@@ -25,7 +25,7 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface NavItem {
-  titleKey: keyof typeof import('@/i18n/translations').translations.en.nav;
+  titleKey: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   roles?: string[];
@@ -42,6 +42,9 @@ const navItems: NavItem[] = [
   { titleKey: 'suppliers', href: '/suppliers', icon: Truck, roles: ['admin', 'purchasing', 'inventory_manager'] },
   { titleKey: 'quotations', href: '/quotations', icon: FileText, roles: ['admin', 'purchasing'] },
   { titleKey: 'sales', href: '/sales', icon: ShoppingCart, roles: ['admin', 'purchasing', 'sales_cairo', 'sales_north_coast'] },
+  { titleKey: 'purchaseOrders' as any, href: '/purchase-orders', icon: ClipboardList, roles: ['admin', 'purchasing'] },
+  { titleKey: 'customers' as any, href: '/customers', icon: Users, roles: ['admin', 'purchasing', 'sales_cairo', 'sales_north_coast'] },
+  { titleKey: 'reports' as any, href: '/reports', icon: FileText, roles: ['admin', 'cfo', 'purchasing'] },
   { titleKey: 'finance', href: '/finance', icon: DollarSign, roles: ['admin', 'cfo'] },
   { titleKey: 'salaries', href: '/salaries', icon: DollarSign, roles: ['admin', 'hr', 'cfo'] },
   { titleKey: 'users', href: '/users', icon: Users, roles: ['admin', 'hr'] },
@@ -95,7 +98,7 @@ export function Sidebar() {
         {filteredNavItems.map((item) => {
           const isActive = location.pathname === item.href;
           const Icon = item.icon;
-          const title = t.nav[item.titleKey];
+          const title = (t.nav as any)[item.titleKey] || item.titleKey;
 
           const linkContent = (
             <Link

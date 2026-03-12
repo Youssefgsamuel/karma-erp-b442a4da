@@ -22,6 +22,9 @@ import Finance from "./pages/Finance";
 import Salaries from "./pages/Salaries";
 import UsersPage from "./pages/Users";
 import SettingsPage from "./pages/Settings";
+import PurchaseOrdersPage from "./pages/PurchaseOrders";
+import CustomersPage from "./pages/Customers";
+import ReportsPage from "./pages/Reports";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -75,6 +78,9 @@ function AppRoutes() {
         <Route path="/sales" element={<Sales />} />
         <Route path="/finance" element={<Finance />} />
         <Route path="/salaries" element={<Salaries />} />
+        <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
+        <Route path="/customers" element={<CustomersPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
         <Route path="/users" element={<UsersPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
