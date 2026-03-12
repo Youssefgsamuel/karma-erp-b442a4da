@@ -114,7 +114,6 @@ export async function createShortageNotifications(
   moId: string,
   shortages: { name: string; required: number; available: number }[]
 ) {
-  // Get users with manufacture_manager and purchasing roles
   const { data: userRoles, error: rolesError } = await supabase
     .from('user_roles')
     .select('user_id, role')
@@ -143,5 +142,112 @@ export async function createShortageNotifications(
       .insert(notifications);
     
     if (error) throw error;
+  }
+}
+
+/**
+ * Check for low stock items and create notifications for relevant users.
+ * Call this periodically or on inventory changes.
+ */
+export async function checkAndCreateLowStockAlerts() {
+  // Get low stock products
+  const { data: products } = await supabase
+    .from('products')
+    .select('id, name, sku, current_stock, minimum_stock')
+    .is('deleted_at', null);
+
+  const lowStockProducts = (products || []).filter(
+    (p) => p.current_stock <= p.minimum_stock && p.minimum_stock > 0
+  );
+
+  // Get low stock materials
+  const { data: materials } = await supabase
+    .from('raw_materials')
+    .select('id, name, sku, current_stock, reorder_point')
+    .is('deleted_at', null);
+
+  const lowStockMaterials = (materials || []).filter(
+    (m) => m.current_stock <= m.reorder_point && m.reorder_point > 0
+  );
+
+  if (lowStockProducts.length === 0 && lowStockMaterials.length === 0) return;
+
+  // Get admin and inventory manager users
+  const { data: userRoles } = await supabase
+    .from('user_roles')
+    .select('user_id')
+    .in('role', ['admin', 'inventory_manager', 'purchasing']);
+
+  const userIds = [...new Set(userRoles?.map((ur) => ur.user_id) || [])];
+  if (userIds.length === 0) return;
+
+  const notifications: any[] = [];
+
+  lowStockProducts.forEach((p) => {
+    userIds.forEach((userId) => {
+      notifications.push({
+        user_id: userId,
+        title: `Low Stock: ${p.name}`,
+        message: `Product ${p.name} (${p.sku}) has ${p.current_stock} units, below minimum of ${p.minimum_stock}.`,
+        type: 'warning',
+        reference_type: 'product',
+        reference_id: p.id,
+      });
+    });
+  });
+
+  lowStockMaterials.forEach((m) => {
+    userIds.forEach((userId) => {
+      notifications.push({
+        user_id: userId,
+        title: `Low Stock: ${m.name}`,
+        message: `Material ${m.name} (${m.sku}) has ${m.current_stock} units, below reorder point of ${m.reorder_point}.`,
+        type: 'warning',
+        reference_type: 'raw_material',
+        reference_id: m.id,
+      });
+    });
+  });
+
+  // Insert in batches to avoid duplicates (only create if no recent alert exists)
+  for (const notif of notifications) {
+    const { data: existing } = await supabase
+      .from('notifications')
+      .select('id')
+      .eq('user_id', notif.user_id)
+      .eq('reference_type', notif.reference_type)
+      .eq('reference_id', notif.reference_id)
+      .eq('type', 'warning')
+      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .limit(1);
+
+    if (!existing || existing.length === 0) {
+      await supabase.from('notifications').insert(notif);
+    }
+  }
+}
+
+/**
+ * Create notification when a manufacturing order is completed
+ */
+export async function createMOCompletedNotification(moNumber: string, moId: string) {
+  const { data: userRoles } = await supabase
+    .from('user_roles')
+    .select('user_id')
+    .in('role', ['admin', 'manufacture_manager', 'inventory_manager']);
+
+  const userIds = [...new Set(userRoles?.map((ur) => ur.user_id) || [])];
+
+  const notifications = userIds.map((userId) => ({
+    user_id: userId,
+    title: `MO Completed: ${moNumber}`,
+    message: `Manufacturing order ${moNumber} has been completed and products are ready for inventory.`,
+    type: 'success' as const,
+    reference_type: 'manufacturing_order',
+    reference_id: moId,
+  }));
+
+  if (notifications.length > 0) {
+    await supabase.from('notifications').insert(notifications);
   }
 }
