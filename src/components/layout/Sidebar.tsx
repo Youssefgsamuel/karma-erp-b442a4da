@@ -25,7 +25,7 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface NavItem {
-  titleKey: keyof typeof import('@/i18n/translations').translations.en.nav;
+  titleKey: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   roles?: string[];
