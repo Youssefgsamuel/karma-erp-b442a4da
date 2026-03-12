@@ -98,7 +98,7 @@ export function Sidebar() {
         {filteredNavItems.map((item) => {
           const isActive = location.pathname === item.href;
           const Icon = item.icon;
-          const title = t.nav[item.titleKey];
+          const title = (t.nav as any)[item.titleKey] || item.titleKey;
 
           const linkContent = (
             <Link
