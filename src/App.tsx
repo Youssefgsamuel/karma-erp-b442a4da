@@ -22,6 +22,9 @@ import Finance from "./pages/Finance";
 import Salaries from "./pages/Salaries";
 import UsersPage from "./pages/Users";
 import SettingsPage from "./pages/Settings";
+import PurchaseOrdersPage from "./pages/PurchaseOrders";
+import CustomersPage from "./pages/Customers";
+import ReportsPage from "./pages/Reports";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
